@@ -1,0 +1,48 @@
+# COUNTERFACTUAL (transport-bagel-cfg): the 4-GPU vLLM-Omni BAGEL CFG-parallel config with the Thinker -> DiT edge on
+# MooncakeTransferEngineConnector (TCP over loopback) instead of SharedMemoryConnector. Same stages, devices and sampling.
+# RTX 5880: vLLM-Omni BAGEL two-stage with the DiT stage CFG-parallel over three cards. The Thinker (a full 27.5 GiB LLM) cannot share a 48 GiB card with a
+# DiT rank (another ~29 GiB), so it gets its own card: 4 GPUs in all (the paper's H100 80 GB runs it on 3, with the Thinker beside DiT rank 0).
+# Harness cards are renumbered 0..3: Thinker on 0, DiT ranks on 1,2,3.
+async_chunk: false
+
+stages:
+  - stage_id: 0
+    max_num_batched_tokens: 32768
+    max_num_seqs: 3
+    gpu_memory_utilization: 0.9
+    trust_remote_code: true
+    enable_prefix_caching: false
+    devices: "0"
+    default_sampling_params:
+      temperature: 0.4
+      top_p: 0.9
+      top_k: 1
+      max_tokens: 2048
+      seed: 52
+      detokenize: true
+      repetition_penalty: 1.05
+
+  - stage_id: 1
+    max_num_batched_tokens: 32768
+    max_num_seqs: 1
+    gpu_memory_utilization: 0.9
+    enforce_eager: true
+    trust_remote_code: true
+    enable_prefix_caching: false
+    devices: "1,2,3"
+    cfg_parallel_size: 3
+    input_connectors:
+      from_stage_0: kv_connector
+    default_sampling_params:
+      seed: 52
+
+connectors:
+  kv_connector:
+    name: MooncakeTransferEngineConnector
+    extra:
+      host: "127.0.0.1"          # no RDMA NIC on this box: the TCP transport over loopback
+      zmq_port: 50051
+      protocol: "tcp"
+      device_name: ""
+      memory_pool_size: 4294967296
+      memory_pool_device: "cpu"  # pinned host pool, as in the BAGEL two-stage Mooncake-TCP config

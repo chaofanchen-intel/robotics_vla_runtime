@@ -1,0 +1,145 @@
+diff --git a/vllm_omni/config/omni_config.py b/vllm_omni/config/omni_config.py
+index 114fd02f..2d5cf28b 100644
+--- a/vllm_omni/config/omni_config.py
++++ b/vllm_omni/config/omni_config.py
+@@ -53,6 +53,7 @@ from vllm_omni.config.stage_config import (
+     _select_processor_funcs,
+     build_stage_runtime_overrides,
+     load_deploy_config,
++    merge_omni_kv_config,
+     merge_pipeline_deploy,
+     merge_sampling_constraints,
+     normalize_pipeline_cli_overrides,
+@@ -1577,7 +1578,7 @@ def _stage_engine_values(
+     # Preserve legacy ordering: topology-owned KV roles override deploy
+     # extras, while an explicit CLI override remains highest priority.
+     if topology.omni_kv_config:
+-        engine["omni_kv_config"] = _copy_value(topology.omni_kv_config)
++        engine["omni_kv_config"] = merge_omni_kv_config(engine.get("omni_kv_config"), topology.omni_kv_config)
+     if stage_cli_overrides:
+         stage_cli_overrides = dict(stage_cli_overrides)
+         if topology.execution_type == StageExecutionType.DIFFUSION:
+diff --git a/vllm_omni/config/stage_config.py b/vllm_omni/config/stage_config.py
+index 424afd2d..085bd9c0 100644
+--- a/vllm_omni/config/stage_config.py
++++ b/vllm_omni/config/stage_config.py
+@@ -1282,6 +1282,26 @@ def _select_processor_funcs(
+     return input_proc, next_stage_proc
+ 
+ 
++# Keys that say which KV transfers a stage performs. They belong to the pipeline topology.
++_OMNI_KV_ROLE_KEYS = frozenset({"need_send_cache", "need_recv_cache", "kv_transfer_criteria"})
++
++
++def merge_omni_kv_config(deploy_value: Any, topology_value: Any) -> dict[str, Any] | None:
++    """Combine a deploy YAML stage ``omni_kv_config`` with the topology's.
++
++    The topology owns the KV roles (``_OMNI_KV_ROLE_KEYS``): a role the deploy YAML
++    names is ignored when the topology defines the transfer. The deploy YAML may add
++    tuning keys the topology does not set, such as ``recv_timeout``; without this,
++    a per-stage override silently has no effect.
++    """
++    deploy: dict[str, Any] = dict(deploy_value) if isinstance(deploy_value, Mapping) else {}
++    if not topology_value:
++        return deploy or None
++    merged = {key: value for key, value in deploy.items() if key not in _OMNI_KV_ROLE_KEYS}
++    merged.update(dict(topology_value))
++    return merged or None
++
++
+ def _build_engine_args(
+     ps: StagePipelineConfig,
+     ds: StageDeployConfig | None,
+@@ -1364,7 +1384,7 @@ def _build_engine_args(
+             ps.model_arch or pipeline.model_arch or pipeline.model_type,
+         )
+     if ps.omni_kv_config:
+-        engine_args["omni_kv_config"] = dict(ps.omni_kv_config)
++        engine_args["omni_kv_config"] = merge_omni_kv_config(engine_args.get("omni_kv_config"), ps.omni_kv_config)
+     engine_args["requires_full_payload_input"] = ps.requires_full_payload_input
+     if not ps.supports_running_prefix_cache_reset:
+         engine_args["supports_running_prefix_cache_reset"] = False
+diff --git a/tests/engine/test_stage_omni_kv_config.py b/tests/engine/test_stage_omni_kv_config.py
+new file mode 100644
+index 00000000..00609cb8
+--- /dev/null
++++ b/tests/engine/test_stage_omni_kv_config.py
+@@ -0,0 +1,78 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM-Omni project
++
++"""A stage-level ``omni_kv_config`` in the deploy YAML must reach the stage's KV manager.
++
++Before the fix, the topology's ``omni_kv_config`` replaced the YAML value outright, so
++``recv_timeout`` (and any other tuning key the topology does not set) was dropped in
++both the typed and the legacy config builders.
++"""
++
++from __future__ import annotations
++
++from pathlib import Path
++
++from vllm_omni.config.omni_config import VllmOmniConfig
++from vllm_omni.config.stage_config import merge_omni_kv_config
++from vllm_omni.distributed.omni_connectors.kv_transfer_manager import OmniKVTransferManager
++from vllm_omni.engine import stage_init_utils
++from vllm_omni.model_executor.models.bagel.pipeline import BAGEL_PIPELINE
++
++_DEPLOY_YAML = """
++async_chunk: false
++stages:
++  - stage_id: 0
++    max_num_seqs: 3
++    enable_prefix_caching: true
++    devices: "0"
++    output_connectors:
++      to_stage_1: kv_connector
++  - stage_id: 1
++    max_num_seqs: 1
++    enforce_eager: true
++    enable_prefix_caching: false
++    omni_kv_config:
++      need_recv_cache: true
++      recv_timeout: 900
++    devices: "1"
++    input_connectors:
++      from_stage_0: kv_connector
++connectors:
++  kv_connector:
++    name: SharedMemoryConnector
++"""
++
++
++def test_merge_keeps_deploy_tuning_keys_and_topology_roles():
++    assert merge_omni_kv_config({"need_recv_cache": True, "recv_timeout": 900}, {"need_recv_cache": True}) == {
++        "need_recv_cache": True,
++        "recv_timeout": 900,
++    }
++    assert merge_omni_kv_config(None, {"need_recv_cache": True}) == {"need_recv_cache": True}
++    assert merge_omni_kv_config({"recv_timeout": 900}, None) == {"recv_timeout": 900}
++    assert merge_omni_kv_config(None, None) is None
++    # the deploy YAML cannot add a KV role the topology does not define on its own
++    assert merge_omni_kv_config({"need_send_cache": True, "recv_timeout": 900}, {"need_recv_cache": True}) == {
++        "need_recv_cache": True,
++        "recv_timeout": 900,
++    }
++
++
++def test_stage_level_recv_timeout_reaches_diffusion_engine_args(tmp_path: Path):
++    deploy = tmp_path / "bagel_kv_timeout.yaml"
++    deploy.write_text(_DEPLOY_YAML, encoding="utf-8")
++    config = VllmOmniConfig.from_pipeline_config(BAGEL_PIPELINE, deploy_config_path=str(deploy))
++    stage = next(s for s in config.stage_configs if s.stage_id == 1)
++
++    engine_args = stage_init_utils.build_engine_args_dict_from_omni_stage_config(stage, "ByteDance-Seed/BAGEL-7B-MoT")
++
++    omni_kv = engine_args["omni_kv_config"]
++    assert omni_kv["recv_timeout"] == 900
++    assert omni_kv["need_recv_cache"] is True
++
++
++def test_kv_manager_reads_recv_timeout_from_omni_kv_config():
++    manager = OmniKVTransferManager._create({"need_recv_cache": True, "recv_timeout": 900})
++    assert manager.config.recv_timeout == 900
++    default = OmniKVTransferManager._create({"need_recv_cache": True})
++    assert default.config.recv_timeout == 30.0

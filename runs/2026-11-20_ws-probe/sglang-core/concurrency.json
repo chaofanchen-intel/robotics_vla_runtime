@@ -1,0 +1,60 @@
+{
+  "results": [
+    {
+      "connections": 1,
+      "requests": 40,
+      "wall_s": 5.819794626906514,
+      "throughput_rps": 6.873094767823761,
+      "latency_ms": {
+        "n": 40,
+        "p50": 165.283333,
+        "p95": 168.56744,
+        "p99": 180.505116,
+        "min": 82.651413,
+        "max": 180.505116,
+        "mean": 144.37371715
+      }
+    },
+    {
+      "connections": 2,
+      "requests": 80,
+      "wall_s": 11.076402442064136,
+      "throughput_rps": 7.22256169531988,
+      "latency_ms": {
+        "n": 80,
+        "p50": 255.922518,
+        "p95": 324.77705,
+        "p99": 326.371696,
+        "min": 97.999516,
+        "max": 327.958881,
+        "mean": 274.20049853750004
+      }
+    },
+    {
+      "connections": 4,
+      "requests": 160,
+      "wall_s": 22.081004185136408,
+      "throughput_rps": 7.246047265717303,
+      "latency_ms": {
+        "n": 160,
+        "p50": 570.2371800000001,
+        "p95": 648.756634,
+        "p99": 653.983649,
+        "min": 93.426955,
+        "max": 659.581235,
+        "mean": 545.3391234
+      }
+    }
+  ],
+  "meta": {
+    "framework": "sglang-core",
+    "mode": "concurrency",
+    "url": "ws://127.0.0.1:18103",
+    "steps": 10,
+    "seed": 42,
+    "fixture": "exps/inputs/PI05/fixture_46row/fixture.json",
+    "started_unix": 1795171873.2852807,
+    "wall_s": 39.6697883605957,
+    "websockets": "17.4"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "generic",
+  "description": "Unknown GPU: conservative defaults (gated protocol, thresholds from the card's own memory).",
+  "gpu_name_pattern": "",
+  "gpu_count": 1,
+  "memory_gib": 0,
+  "thermal_stable": false,
+  "default_protocol": "gated",
+  "visible_devices": "0",
+  "empty_gpu_max_memory_mib": 256,
+  "loaded_gpu_max_memory_mib": 0,
+  "config_overlay": null,
+  "needs_overlay_for_tasks": [],
+  "notes": []
+}

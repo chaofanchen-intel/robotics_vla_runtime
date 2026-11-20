@@ -1,0 +1,25 @@
+# Profile-only Qwen3-Omni configuration for eager stage timing.
+# The model topology and memory budgets match qwen3_omni_colocated_h200.yaml.
+config_cls: Qwen3OmniSpeechColocatedPipelineConfig
+name: qwen3-omni-colocated-h200-stage-timing
+model_path: Qwen/Qwen3-Omni-30B-A3B-Instruct
+
+stages:
+  image_encoder:
+    gpu_memory_fraction: 0.017
+  audio_encoder:
+    gpu_memory_fraction: 0.017
+    factory:
+      enable_layer_cuda_graph: false
+  thinker:
+    gpu_memory_fraction: 0.769
+    engine:
+      disable_cuda_graph: true
+      enable_torch_compile: false
+  talker_ar:
+    gpu_memory_fraction: 0.123
+    engine:
+      moe_runner_backend: triton
+      disable_flashinfer_autotune: true
+  code2wav:
+    gpu_memory_fraction: 0.014

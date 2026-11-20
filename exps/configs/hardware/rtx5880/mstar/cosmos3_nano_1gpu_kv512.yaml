@@ -1,0 +1,15 @@
+# Cosmos3-Nano DiT on ONE 48 GiB RTX 5880. The default config's 1024-page KV pool (~19 GB) does not fit beside the ~31 GB of
+# DiT weights; 512 pages (~9.5 GB) leave room for activations and the graph captures.
+model: "cosmos3"
+max_seq_len: 8192
+resources:
+  kv:
+    max_num_pages: 512
+model_kwargs:
+  accelerator_graph: true
+  graph_max_latent_area: 2000
+node_groups:
+  - node_names: ["dit"]
+    ranks: [0]
+  - node_names: ["vae_encoder", "vae_decoder", "audio_decoder"]
+    ranks: [0]

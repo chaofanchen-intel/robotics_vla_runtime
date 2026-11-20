@@ -1,0 +1,44 @@
+# RTX 5880 non-colocated speech pipeline on 3 cards (the fewest that fit): Thinker TP=2 on GPUs 0,1; Talker on GPU 2.
+# The physical cards are the free ones the harness picked (CUDA_VISIBLE_DEVICES renumbers them 0..2).
+# The encoders share GPU 0 with one Thinker rank, and Code2Wav shares GPU 2
+# with the Talker; the declared budgets keep each card below 95%.
+config_cls: Qwen3OmniSpeechPipelineConfig
+name: qwen3-omni-rtx5880-tp2
+model_path: Qwen/Qwen3-Omni-30B-A3B-Instruct
+
+stages:
+  image_encoder:
+    gpu: 0
+    gpu_memory_fraction: 0.02
+
+  audio_encoder:
+    gpu: 0
+    gpu_memory_fraction: 0.02
+
+  thinker:
+    gpu: [0, 1]
+    tp_size: 2
+    gpu_memory_fraction: 0.9
+    factory:
+      max_seq_len: 8192
+      encoder_mem_reserve: 0.02
+    engine:
+      disable_custom_all_reduce: true
+      cuda_graph_max_bs: 16
+      max_running_requests: 16
+      max_total_tokens: 32768
+
+  talker_ar:
+    gpu: 2
+    gpu_memory_fraction: 0.8
+    factory:
+      max_seq_len: 8192
+    engine:
+      disable_custom_all_reduce: true
+      cuda_graph_max_bs: 16
+      max_running_requests: 16
+      max_total_tokens: 32768
+
+  code2wav:
+    gpu: 2
+    gpu_memory_fraction: 0.06

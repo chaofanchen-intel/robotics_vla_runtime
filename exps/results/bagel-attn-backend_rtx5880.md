@@ -1,0 +1,41 @@
+# BAGEL attention backend: probe counters and ratio matrix
+
+## What the worker-side probe counted (M*)
+
+| campaign | case | start | probe procs | pip flash_attn importable | ViT flash calls | ViT SDPA-fallback calls | attention managers |
+|---|---|---|---:|---|---:|---:|---|
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | i2i-512 | r01 | 3 | [True] | 156 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | i2i-512 | r02 | 3 | [True] | 156 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | i2t-512 | r01 | 3 | [True] | 156 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | i2t-512 | r02 | 3 | [True] | 156 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | t2i-512-nocfg | r01 | 3 | [True] | 0 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | t2i-512-nocfg | r02 | 3 | [True] | 0 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | i2i-512 | r01 | 3 | [False] | 0 | 156 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | i2i-512 | r02 | 3 | [False] | 0 | 156 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | i2t-512 | r01 | 3 | [False] | 0 | 156 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | i2t-512 | r02 | 3 | [False] | 0 | 156 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | t2i-512-nocfg | r01 | 3 | [False] | 0 | 0 | FlashInferManager |
+| BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | t2i-512-nocfg | r02 | 3 | [False] | 0 | 0 | FlashInferManager |
+
+## E2E p50 (ms, pooled) and vLLM-Omni / M* for every pairing
+
+| case | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B |
+|---|---:|---:|---:|---:|
+| i2i-512 | 23,566 | 23,577 | 28,121 | 31,412 |
+| i2t-512 | 2,299 | 2,290 | 2,976 | 2,980 |
+| t2i-512-nocfg | 7,423 | 7,436 | 7,641 | 7,657 |
+
+| case | vLLM arm | M* arm | vLLM / M* |
+|---|---|---|---:|
+| i2i-512 | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.19x |
+| i2i-512 | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.19x |
+| i2i-512 | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.33x |
+| i2i-512 | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.33x |
+| i2t-512 | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.29x |
+| i2t-512 | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.30x |
+| i2t-512 | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.30x |
+| i2t-512 | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.30x |
+| t2i-512-nocfg | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.03x |
+| t2i-512-nocfg | BAGEL_ATTN_BACKEND_VLLM_DEFAULT_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.03x |
+| t2i-512-nocfg | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_PROBE_01_B2B | 1.03x |
+| t2i-512-nocfg | BAGEL_ATTN_BACKEND_VLLM_SDPA_01_B2B | BAGEL_ATTN_BACKEND_MSTAR_NO_FLASH_ATTN_01_B2B | 1.03x |

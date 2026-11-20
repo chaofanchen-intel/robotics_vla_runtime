@@ -1,0 +1,29 @@
+# COUNTERFACTUAL, used only through `--opt config.mstar=...`: qwen3omni_3gpu_thinker_tp2_chunk4096.yaml with the Thinker KV pool halved (512 -> 256 pages).
+# Under nsys the server captured NO 2,048-token prefill graph (qwen-prefill-chunk-nsys: `captured 52 of 74`), so the budget-4,096 arm measured an eager 1,072-token
+# forward, not the production path where the step is replayed in the one 2,048 graph (bs=32) the default captures. This frees ~GiB for the graphs so the nsys
+# run can see the padded forward (qwen-prefill-nsys-room). The KV pool is still far larger than the ~1.1k-token prompts need. Verify in server.log that
+# `Captured accelerator graph for Thinker: prefill_text[bs=32,tokens=2048]` appears. Not a baseline.
+# Three-RTX-5880 deployment (the fewest cards that hold the model): Thinker TP=2 on ranks 0-1, Talker and Code2Wav
+# together on rank 2. The 30B Thinker is ~61 GB in BF16 and needs two 48 GiB cards; keeping the Talker on its own card
+# preserves the paper's "Thinker and Talker on separate devices" topology (2xH200 there).
+# The 8k context and smaller Thinker KV pool leave room for graph workspaces on 48 GiB cards while retaining enough
+# capacity for the smoke/profile cases.
+model: "qwen3_omni"
+max_seq_len: 8192
+resources:
+  thinker_kv:
+    max_num_pages: 256
+    cpu_offload_pages: 1024
+node_groups:
+  - node_names: [Thinker]
+    ranks: [0, 1]
+    tp_size: 2
+  - node_names: [audio_encoder, vision_encoder]
+    ranks: [0]
+  - node_names: [Talker]
+    ranks: [2]
+  - node_names: [Code2Wav]
+    ranks: [2]
+max_batch_tokens:
+  Thinker:
+    thinker_mixed: 4096

@@ -1,0 +1,22 @@
+# Qwen3-Omni TXT, fair profile: prefix cache off/on in all three frameworks, SGLang lookahead eligible
+
+**Question.** The baseline TXT cells were not equal: SGLang-Omni's Thinker had its radix cache ON while M* (prefix_cache_tp off at TP=2) and vLLM-Omni (upstream enable_prefix_caching: false) had none, the prompt repeats, and our seed / min_tokens switched SGLang's own lookahead decode off. With the cache OFF in all three, and again ON in all three, and a request SGLang's lookahead accepts, does M* still lead, and by how much?
+
+**Pre-registered reading.** Compare within a cache state: off-vs-off (a cold prefill every request) and on-vs-on (a hot prefix). TTFT carries the cache, ITL the decode loop. sglang-on-async-off must be slower than sglang-on in ITL, or the lookahead was never engaged. vllm-pinned / mstar-pinned against vllm-off / mstar-off say whether dropping seed + min_tokens changes them (expected: no). Anything the arms leave unequal is listed in the fairness audit, not assumed away.
+
+**Caveats.** `on` = the same prompt repeated, i.e. a hot prefix (best case for every cache); `off` = a cold prefill each request. There is no M* `on` arm: with the Thinker's prefix cache enabled at TP=2 (`prefix_cache_tp: true`, offload 0) M* serves the first 1k-token request and the SECOND (identical prompt) kills worker_1 with `TP ranks diverged: KV thinker_kv: rank 0 leased 8 cached pages ...` (QWEN_FAIR_TXT_MSTAR_ON_01_B2B, both repeats). M* ships that switch off at world size 2, so M* has no hot-prefix TXT number on this box.
+
+Campaigns: `QWEN_FAIR_TXT_SGLANG_OFF_01_B2B` (sglang-off, back-to-back), `QWEN_FAIR_TXT_SGLANG_ON_01_B2B` (sglang-on, back-to-back), `QWEN_FAIR_TXT_SGLANG_ON_ASYNC_OFF_01_B2B` (sglang-on-async-off, back-to-back), `QWEN_FAIR_TXT_VLLM_OFF_01_B2B` (vllm-off, back-to-back), `QWEN_FAIR_TXT_VLLM_ON_01_B2B` (vllm-on, back-to-back), `QWEN_FAIR_TXT_MSTAR_OFF_01_B2B` (mstar-off, back-to-back), `QWEN_FAIR_TXT_VLLM_PINNED_01_B2B` (vllm-pinned, back-to-back), `QWEN_FAIR_TXT_MSTAR_PINNED_01_B2B` (mstar-pinned, back-to-back)
+
+Headline = pooled p50 of E2E ms over every measured request of every start; [min–max] = per-start medians. `clean` = share of requests with no clock-event (throttle) reason, SM clock held >= 98% of nominal and a clock spread <= 60 MHz during the request; it does not test temperature. T °C = mean GPU temperature at request start, SM MHz = mean clock during the request: read both beside `clean`.
+
+| framework | case | arm | starts | n | E2E ms p50 [start range] | clean | T °C | SM MHz | vs sglang-off |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| sglang-omni | txt-1k | sglang-off | 2 | 10 | 1,596 [1,595–1,598] | 0% | 41 | 2,693 | - |
+| sglang-omni | txt-1k | sglang-on | 2 | 10 | 1,588 [1,586–1,591] | 0% | 40 | 2,700 | 1.00x |
+| sglang-omni | txt-1k | sglang-on-async-off | 2 | 10 | 2,135 [2,128–2,139] | 0% | 41 | 2,700 | 1.34x |
+| vllm-omni | txt-1k | vllm-off | 2 | 10 | 1,610 [1,607–1,612] | 0% | 37 | 2,698 | - |
+| vllm-omni | txt-1k | vllm-on | 2 | 10 | 1,637 [1,636–1,639] | 0% | 38 | 2,700 | - |
+| vllm-omni | txt-1k | vllm-pinned | 2 | 10 | 1,614 [1,614–1,614] | 0% | 37 | 2,699 | - |
+| mstar | txt-1k | mstar-off | 2 | 10 | 1,648 [1,644–1,648] | 0% | 47 | 2,685 | - |
+| mstar | txt-1k | mstar-pinned | 2 | 10 | 1,648 [1,645–1,649] | 0% | 48 | 2,684 | - |

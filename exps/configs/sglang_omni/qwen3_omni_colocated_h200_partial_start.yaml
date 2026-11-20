@@ -1,0 +1,24 @@
+# Experimental colocated Qwen3-Omni T2S candidate.
+# The base single-H200 memory budgets are retained. Talker can build after the
+# first usable Thinker chunk, then gate decode on each subsequent chunk.
+config_cls: Qwen3OmniSpeechColocatedPipelineConfig
+name: qwen3-omni-colocated-h200-partial-start
+model_path: Qwen/Qwen3-Omni-30B-A3B-Instruct
+
+stages:
+  image_encoder:
+    gpu_memory_fraction: 0.017
+  audio_encoder:
+    gpu_memory_fraction: 0.017
+  thinker:
+    gpu_memory_fraction: 0.769
+  talker_ar:
+    gpu_memory_fraction: 0.123
+    engine:
+      moe_runner_backend: triton
+      disable_flashinfer_autotune: true
+    factory:
+      enable_partial_start: true
+      enable_talker_start_topology: true
+  code2wav:
+    gpu_memory_fraction: 0.014

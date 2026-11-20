@@ -1,0 +1,15 @@
+diff --git a/examples/configs/qwen3_omni_colocated_h200.yaml b/examples/configs/qwen3_omni_colocated_h200.yaml
+index 1647827..d20346b 100644
+--- a/examples/configs/qwen3_omni_colocated_h200.yaml
++++ b/examples/configs/qwen3_omni_colocated_h200.yaml
+@@ -21,5 +21,10 @@ stages:
+     gpu_memory_fraction: 0.769
+   talker_ar:
+     gpu_memory_fraction: 0.123
++    engine:
++      moe_runner_backend: triton
++      # The first H200 Talker warmup otherwise launches a long FlashInfer JIT
++      # autotune before the colocated service can bind its API port.
++      disable_flashinfer_autotune: true
+   code2wav:
+     gpu_memory_fraction: 0.014

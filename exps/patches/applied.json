@@ -1,0 +1,36 @@
+{
+  "applied": [
+    {
+      "file": "mstar-01-vjepa-max-rollout-horizon-32.diff",
+      "sha256": "4ca50bbf85606104836ffa2de67db755fb941dc2ca6611e035137cb5b8703149"
+    },
+    {
+      "file": "mstar-02-orpheus-offline-tokenizer.diff",
+      "sha256": "b559f022bce8470757662667ce09bb42913e1233959adeaed6a8932bd134f867"
+    },
+    {
+      "file": "mstar-04-bagel-vllm-request-parity.diff",
+      "sha256": "46102366604d42dd869348f23a2b59328f5ad05cd857c27c9a552c6e97195144"
+    },
+    {
+      "file": "mstar-05-code-predictor-smem-fit.diff",
+      "sha256": "8db152094611972fcfae1f334b785b8ba1d62d77e4c1706545416eac308689a7"
+    },
+    {
+      "file": "sglang-01-qwen-length-controls.diff",
+      "sha256": "dbeaef6161451ae6611eae7115e74d4f72c4564314df8c4ba2839e5a7009a361"
+    },
+    {
+      "file": "vllm-01-bagel-i2t-length-controls.diff",
+      "sha256": "d2376cf2a0945a935cefe7749c154ad38035d72142a79d0bb61b61d2cb66e72b"
+    },
+    {
+      "file": "vllm-02-stage-omni-kv-recv-timeout.diff",
+      "sha256": "9111132272e88052d60f2bde41843b74fd2b1005513a5827d0596cf40eabfdd0"
+    },
+    {
+      "file": "vllm-03-worker-connector-kv-transfer-port.diff",
+      "sha256": "79291cb7b0ffd6fc3c857b59f9f0e922c9ba5a87cd227e56f58b4917a471d0e7"
+    }
+  ]
+}

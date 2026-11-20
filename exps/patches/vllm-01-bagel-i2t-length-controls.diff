@@ -1,0 +1,352 @@
+diff --git a/tests/diffusion/models/bagel/test_step_execution.py b/tests/diffusion/models/bagel/test_step_execution.py
+index e5f8e5d5..efc3c978 100644
+--- a/tests/diffusion/models/bagel/test_step_execution.py
++++ b/tests/diffusion/models/bagel/test_step_execution.py
+@@ -18,6 +18,7 @@ from vllm_omni.diffusion.models.bagel.bagel_transformer import Bagel, NaiveCache
+ from vllm_omni.diffusion.models.bagel.pipeline_bagel import (
+     BagelGenParams,
+     BagelPipeline,
++    _bagel_text_output_generation_controls,
+     _bagel_canvas_requested,
+     get_bagel_pre_process_func,
+ )
+@@ -933,3 +934,52 @@ def test_multi_branch_cfg_combines_same_cfg_for_each_request_independently():
+ 
+     assert torch.equal(result[:2], torch.full((2, 1), 3.0))
+     assert torch.equal(result[2:], torch.full((2, 1), 6.0))
++
++
++def test_bagel_text_output_generation_controls_use_requested_token_limits():
++    assert _bagel_text_output_generation_controls(
++        {"max_tokens": 128, "min_tokens": 128, "ignore_eos": True}
++    ) == {
++        "max_length": 129,
++        "min_tokens": 128,
++        "ignore_eos": True,
++    }
++    assert _bagel_text_output_generation_controls({}) == {
++        "max_length": 500,
++        "min_tokens": 0,
++        "ignore_eos": False,
++    }
++
++
++class _EOSPreferredLanguageModel:
++    def __call__(self, *, past_key_values, **_kwargs):
++        return types.SimpleNamespace(
++            past_key_values=past_key_values,
++            packed_query_sequence=torch.zeros((1, 1)),
++        )
++
++    def lm_head(self, _packed_query_sequence):
++        return torch.tensor([[0.0, 1.0, -1.0]])
++
++
++def _generate_text_with_eos_controls(**controls):
++    return Bagel.generate_text(
++        types.SimpleNamespace(language_model=_EOSPreferredLanguageModel()),
++        past_key_values=None,
++        packed_start_tokens=torch.tensor([2]),
++        packed_query_position_ids=torch.tensor([0]),
++        end_token_id=1,
++        **controls,
++    )
++
++
++def test_bagel_text_generation_suppresses_eos_until_min_tokens():
++    tokens = _generate_text_with_eos_controls(max_length=3, min_tokens=2)
++
++    assert tokens[:, 0].tolist() == [2, 0, 0]
++
++
++def test_bagel_text_generation_ignores_eos_through_max_length():
++    tokens = _generate_text_with_eos_controls(max_length=4, ignore_eos=True)
++
++    assert tokens[:, 0].tolist() == [2, 0, 0, 0]
+diff --git a/tests/entrypoints/openai_api/test_serving_chat_sampling_params.py b/tests/entrypoints/openai_api/test_serving_chat_sampling_params.py
+index d504af73..48372001 100644
+--- a/tests/entrypoints/openai_api/test_serving_chat_sampling_params.py
++++ b/tests/entrypoints/openai_api/test_serving_chat_sampling_params.py
+@@ -88,6 +88,9 @@ def test_serving_boundary_normalizes_declared_root_and_nested_extras(mock_engine
+         model="test",
+         messages=[],
+         modalities=["image"],
++        max_tokens=128,
++        min_tokens=128,
++        ignore_eos=True,
+         num_inference_steps=7,
+         quality="high",
+         size="768x512",
+@@ -110,6 +113,9 @@ def test_serving_boundary_normalizes_declared_root_and_nested_extras(mock_engine
+     assert diffusion_request_args["negative_prompt"] == "avoid blur"
+     assert diffusion_request_args["lora"] == {"name": "adapter"}
+     assert diffusion_request_args["modalities"] == ["image"]
++    assert diffusion_request_args["max_tokens"] == 128
++    assert diffusion_request_args["min_tokens"] == 128
++    assert diffusion_request_args["ignore_eos"] is True
+ 
+ 
+ def test_unknown_root_extra_does_not_claim_canonical_extra(mock_engine_client):
+@@ -261,6 +267,64 @@ def test_pure_consumer_preserves_defaults_and_separate_cfg_owners(mock_engine_cl
+     assert response.error.message == "No output generated from AsyncOmni"
+ 
+ 
++def test_pure_text_diffusion_applies_length_controls_and_reports_token_count(
++    mock_engine_client,
++    mocker: MockerFixture,
++):
++    from vllm_omni.inputs.data import OmniDiffusionSamplingParams
++
++    captured: dict[str, object] = {}
++    result = SimpleNamespace(
++        final_output_type="text",
++        multimodal_output={
++            "text": "a generated caption",
++            "metadata": {"text": {"completion_tokens": 128}},
++        },
++    )
++
++    async def generate(**kwargs):
++        captured.update(kwargs)
++        yield result
++
++    serving_chat = build_serving_chat(engine_client=mock_engine_client)
++    serving_chat._diffusion_mode = True
++    serving_chat._diffusion_model_name = "bagel"
++    serving_chat._diffusion_extra_body_params = frozenset()
++    serving_chat._diffusion_extra_output_params = frozenset()
++    serving_chat._diffusion_engine = SimpleNamespace(
++        stage_configs=[SimpleNamespace(stage_type="diffusion")],
++        default_sampling_params_list=[
++            OmniDiffusionSamplingParams(extra_args={"stage_default": True}),
++        ],
++        generate=generate,
++    )
++    mocker.patch.object(
++        serving_chat,
++        "_extract_diffusion_prompt_and_media",
++        return_value=("describe this image", [], [], []),
++    )
++    request = ChatCompletionRequest(
++        model="bagel",
++        messages=[],
++        modalities=["text"],
++        max_tokens=128,
++        min_tokens=128,
++        ignore_eos=True,
++    )
++
++    response = asyncio.run(serving_chat._create_chat_completion(request))
++
++    (sampling_params,) = captured["sampling_params_list"]
++    assert sampling_params.extra_args == {
++        "stage_default": True,
++        "max_tokens": 128,
++        "min_tokens": 128,
++        "ignore_eos": True,
++    }
++    assert response.usage.completion_tokens == 128
++    assert response.usage.total_tokens == response.usage.prompt_tokens + 128
++
++
+ def test_mixed_consumer_keeps_root_common_args_with_nested_extras(mock_engine_client, mocker: MockerFixture):
+     from vllm_omni.inputs.data import OmniDiffusionSamplingParams
+ 
+diff --git a/vllm_omni/diffusion/models/bagel/bagel_transformer.py b/vllm_omni/diffusion/models/bagel/bagel_transformer.py
+index 09449f4f..4d36335c 100644
+--- a/vllm_omni/diffusion/models/bagel/bagel_transformer.py
++++ b/vllm_omni/diffusion/models/bagel/bagel_transformer.py
+@@ -1766,11 +1766,15 @@ class Bagel(CFGParallelMixin, nn.Module):
+         do_sample: bool = False,
+         temperature: float = 1.0,
+         end_token_id: int | None = None,
++        min_tokens: int = 0,
++        ignore_eos: bool = False,
+     ):
+         """Autoregressive text generation (ported from original BAGEL).
+ 
+         Decodes tokens one at a time, appending to ``past_key_values``
+         until ``max_length`` is reached or ``end_token_id`` is generated.
++        EOS is suppressed until ``min_tokens`` are generated, or entirely
++        when ``ignore_eos`` is set.
+         """
+         step = 0
+         generated_sequence = []
+@@ -1792,6 +1796,9 @@ class Bagel(CFGParallelMixin, nn.Module):
+             packed_query_sequence = output.packed_query_sequence
+             pred_logits = self.language_model.lm_head(packed_query_sequence)
+ 
++            if end_token_id is not None and (ignore_eos or step < min_tokens):
++                pred_logits[..., end_token_id] = float("-inf")
++
+             if do_sample:
+                 probs = nn.functional.softmax(pred_logits / temperature, dim=-1)
+                 curr_tokens = torch.multinomial(probs, num_samples=1).squeeze(1)
+diff --git a/vllm_omni/diffusion/models/bagel/pipeline_bagel.py b/vllm_omni/diffusion/models/bagel/pipeline_bagel.py
+index 3d0a467f..ea93e7b6 100644
+--- a/vllm_omni/diffusion/models/bagel/pipeline_bagel.py
++++ b/vllm_omni/diffusion/models/bagel/pipeline_bagel.py
+@@ -64,6 +64,20 @@ class BagelGenParams:
+     cfg_renorm_type: str = "global"
+ 
+ 
++def _bagel_text_output_generation_controls(extra_args: dict[str, Any]) -> dict[str, Any]:
++    requested_max_tokens = extra_args.get("max_tokens")
++    if requested_max_tokens is None:
++        max_length = int(extra_args.get("max_think_tokens", 500))
++    else:
++        # generate_text includes its assistant-start token in max_length.
++        max_length = int(requested_max_tokens) + 1
++    return {
++        "max_length": max_length,
++        "min_tokens": int(extra_args.get("min_tokens", 0) or 0),
++        "ignore_eos": bool(extra_args.get("ignore_eos", False)),
++    }
++
++
+ def add_special_tokens(tokenizer):
+     all_special_tokens = []
+     for k, v in tokenizer.special_tokens_map.items():
+@@ -895,6 +909,7 @@ class BagelPipeline(nn.Module, SupportsComponentDiscovery, DiffusionPipelineProf
+         is_text_output = "text" in modalities
+         think_enabled = extra_args.get("think", False)
+         think_text = None
++        text_completion_tokens = None
+ 
+         if think_enabled and injected_kv is None:
+             max_think_tokens = int(extra_args.get("max_think_tokens", 1000))
+@@ -922,6 +937,7 @@ class BagelPipeline(nn.Module, SupportsComponentDiscovery, DiffusionPipelineProf
+                     end_token_id=self.new_token_ids["eos_token_id"],
+                     **start_input,
+                 )
++                text_completion_tokens = max(int(token_ids.shape[0]) - 1, 0)
+                 # token_ids shape: (seq_len, batch=1)
+                 decoded = self.tokenizer.decode(token_ids[:, 0].tolist())
+                 # Strip chat markers to get clean text
+@@ -945,7 +961,7 @@ class BagelPipeline(nn.Module, SupportsComponentDiscovery, DiffusionPipelineProf
+                 # Think mode already generated the text (including reasoning)
+                 text_output = think_text
+             else:
+-                max_text_tokens = int(extra_args.get("max_think_tokens", 500))
++                generation_controls = _bagel_text_output_generation_controls(extra_args)
+                 do_sample = bool(extra_args.get("do_sample", False))
+                 text_temperature = float(extra_args.get("text_temperature", 0.3))
+ 
+@@ -962,12 +978,13 @@ class BagelPipeline(nn.Module, SupportsComponentDiscovery, DiffusionPipelineProf
+                             start_input[k] = v.to(self.device)
+                     token_ids = self.bagel.generate_text(
+                         past_key_values=gen_context["past_key_values"],
+-                        max_length=max_text_tokens,
+                         do_sample=do_sample,
+                         temperature=text_temperature,
+                         end_token_id=self.new_token_ids["eos_token_id"],
++                        **generation_controls,
+                         **start_input,
+                     )
++                    text_completion_tokens = max(int(token_ids.shape[0]) - 1, 0)
+                     decoded = self.tokenizer.decode(token_ids[:, 0].tolist())
+                     text_output = decoded.split("<|im_end|>")[0]
+                     if "<|im_start|>" in text_output:
+@@ -976,7 +993,12 @@ class BagelPipeline(nn.Module, SupportsComponentDiscovery, DiffusionPipelineProf
+             return DiffusionOutput(
+                 output={
+                     "payload": {"text": text_output},
+-                    "metadata": {"text": {"text_output": text_output}},
++                    "metadata": {
++                        "text": {
++                            "text_output": text_output,
++                            "completion_tokens": text_completion_tokens,
++                        }
++                    },
+                 },
+                 stage_durations=self.stage_durations if hasattr(self, "stage_durations") else None,
+             )
+diff --git a/vllm_omni/entrypoints/openai/serving_chat.py b/vllm_omni/entrypoints/openai/serving_chat.py
+index 521e9258..75763764 100644
+--- a/vllm_omni/entrypoints/openai/serving_chat.py
++++ b/vllm_omni/entrypoints/openai/serving_chat.py
+@@ -211,6 +211,9 @@ class OmniOpenAIServingChat(OpenAIServingChat, AudioMixin):
+             "negative_prompt",
+             "lora",
+             "modalities",
++            "max_tokens",
++            "min_tokens",
++            "ignore_eos",
+         }
+     )
+     _diffusion_root_field_aliases = {"cfg_scale": "true_cfg_scale"}
+@@ -527,6 +530,22 @@ class OmniOpenAIServingChat(OpenAIServingChat, AudioMixin):
+             return str(mm_output["text"])
+         return ""
+ 
++    @staticmethod
++    def _get_diffusion_text_completion_tokens(output: object) -> int | None:
++        mm_output = getattr(output, "multimodal_output", None)
++        if not isinstance(mm_output, dict):
++            return None
++        metadata = mm_output.get("metadata")
++        if not isinstance(metadata, dict):
++            return None
++        text_metadata = metadata.get("text")
++        if not isinstance(text_metadata, dict):
++            return None
++        completion_tokens = text_metadata.get("completion_tokens")
++        if isinstance(completion_tokens, bool) or not isinstance(completion_tokens, int):
++            return None
++        return completion_tokens if completion_tokens >= 0 else None
++
+     def _get_supported_speakers(self) -> set[str]:
+         """Load supported speakers from model config (cached)."""
+         if self._supported_speakers is not None:
+@@ -3925,6 +3944,16 @@ class OmniOpenAIServingChat(OpenAIServingChat, AudioMixin):
+ 
+             if is_text_request:
+                 gen_prompt["modalities"] = ["text"]
++                text_sampling_args = {
++                    key: extra_body[key]
++                    for key in ("max_tokens", "min_tokens", "ignore_eos")
++                    if extra_body.get(key) is not None
++                }
++                if text_sampling_args:
++                    gen_params.extra_args = {
++                        **(gen_params.extra_args or {}),
++                        **text_sampling_args,
++                    }
+ 
+             # Add reference image if provided (from messages content)
+             if pil_images:
+@@ -3988,6 +4017,23 @@ class OmniOpenAIServingChat(OpenAIServingChat, AudioMixin):
+             # Text output path (img2text / text2text)
+             if is_text_request and result.final_output_type == "text":
+                 text_body = self._get_diffusion_text_output(result)
++                completion_tokens = self._get_diffusion_text_completion_tokens(result)
++                if completion_tokens is None:
++                    tokenizer_getter = getattr(self._diffusion_engine, "get_tokenizer", None)
++                    if tokenizer_getter is None:
++                        return self._create_error_response(
++                            "Text output did not report completion token count and the diffusion "
++                            "engine exposes no tokenizer.",
++                            status_code=500,
++                        )
++                    tokenizer = await tokenizer_getter()
++                    if tokenizer is None:
++                        return self._create_error_response(
++                            "Text output did not report completion token count and no tokenizer "
++                            "was available.",
++                            status_code=500,
++                        )
++                    completion_tokens = len(tokenizer.encode(text_body, add_special_tokens=False))
+                 message = ChatMessage(role="assistant", content=text_body)
+                 choice = ChatCompletionResponseChoice(
+                     index=0,
+@@ -4003,8 +4049,8 @@ class OmniOpenAIServingChat(OpenAIServingChat, AudioMixin):
+                     choices=[choice],
+                     usage=UsageInfo(
+                         prompt_tokens=len(prompt.split()),
+-                        completion_tokens=len(text_body.split()),
+-                        total_tokens=len(prompt.split()) + len(text_body.split()),
++                        completion_tokens=completion_tokens,
++                        total_tokens=len(prompt.split()) + completion_tokens,
+                     ),
+                     metrics=self._get_diffusion_extra_output_params(result),
+                 )

@@ -1,0 +1,23 @@
+# Shared with the benchmark repo (symlinks, not copied)
+/envs
+/models
+
+# Upstream source snapshots (recorded in external/README.md; not vendored into this repo)
+/external/*
+!/external/README.md
+
+# Build outputs (rebuild with build/README.md)
+/build/mstar_rust/
+/build/mstar_rust_wheel/
+/build/bin/
+
+# Fixtures and images (large; copied from the benchmark repo on disk)
+exps/inputs/*
+!exps/inputs/README.md
+exps/runs/
+
+# Python and editor artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store

@@ -1,0 +1,83 @@
+diff --git a/benchmark/request.py b/benchmark/request.py
+index e55c335..a337d52 100644
+--- a/benchmark/request.py
++++ b/benchmark/request.py
+@@ -1012,9 +1012,8 @@ class VLLMOmni(InferenceSystem):
+        bytes. We must NOT `continue` after reading usage — that drops the
+        audio. Read usage AND process choices on every chunk.
+
+-    `modalities=[output_mod]` only when `output_mod != "text"` (matches
+-    vllm-omni's expected behavior: `["audio"]` streams audio-only; absence
+-    streams text+audio because the talker runs unconditionally).
++    `modalities=[output_mod]` is always set explicitly. For text-only requests
++    this prevents the server default from adding unwanted audio generation.
+     """
+
+     async def send_request(
+@@ -1064,7 +1063,7 @@ class VLLMOmni(InferenceSystem):
+             messages = [system_message, user_message] if system_message is not None else [user_message]
+
+             payload: dict = {
+-                "model": model.get_hf_url(),
++                "model": model.config.get("served_model_name") or model.get_hf_url(),
+                 "messages": messages,
+                 "temperature": 0.0,  # match vllm-omni's bench (`patch.py:336`)
+                 **model.get_model_kwargs(req_type),
+@@ -1198,6 +1197,7 @@ class VLLMOmni(InferenceSystem):
+         req_type = req_input.req_type
+         kwargs = {
+             **model.get_model_kwargs(req_type),
++            **req_input.model_kwargs,
+             **additional_model_kwargs,
+         }
+         kwargs.pop("temperature", None)
+@@ -1227,7 +1227,7 @@ class VLLMOmni(InferenceSystem):
+                 "content": content if content else req_input.prompt,
+             }]
+             payload = {
+-                "model": model.get_hf_url(),
++                "model": model.config.get("served_model_name") or model.get_hf_url(),
+                 "messages": messages,
+             }
+
+@@ -1350,10 +1350,8 @@ class SGLangOmni(InferenceSystem):
+             # own TTS task convention (`benchmarks/tasks/tts.py:907`).
+             if output_mod == "audio":
+                 modalities_arg = ["text", "audio"]
+-            elif output_mod != "text":
+-                modalities_arg = [output_mod]
+             else:
+-                modalities_arg = None
++                modalities_arg = [output_mod]
+             # Same per-model rationale as VLLMOmni: only Qwen3-Omni needs the
+             # "You are Qwen…" preamble; BAGEL et al. must not receive it.
+             # sglang-omni accepts plain-string content in the system role
+@@ -1374,12 +1372,13 @@ class SGLangOmni(InferenceSystem):
+                 [{"role": "system", "content": sys_text}, user_msg] if sys_text is not None else [user_msg]
+             )
+             payload: dict = {
+-                "model": model.get_hf_url(),
++                "model": model.config.get("served_model_name") or model.get_hf_url(),
+                 "messages": messages,
+                 "temperature": 0.0,  # match VLLMOmni — greedy for cross-system parity
+                 "stream": True,
+                 "stream_options": {"include_usage": True},
+                 **model.get_model_kwargs(req_type),
++                **req_input.model_kwargs,
+                 **additional_model_kwargs,
+             }
+             # Top-level multimodal fields (Fix 10a). sglang-omni reads files
+@@ -1391,10 +1390,9 @@ class SGLangOmni(InferenceSystem):
+                 payload["audios"] = [req_input.audio_path]
+             elif input_mod == "video" and req_input.video_path:
+                 payload["videos"] = [req_input.video_path]
+-            if modalities_arg is not None:
+-                payload["modalities"] = modalities_arg
+-                if output_mod == "audio":
+-                    payload["audio"] = {"format": "wav"}
++            payload["modalities"] = modalities_arg
++            if output_mod == "audio":
++                payload["audio"] = {"format": "wav"}
+
+             metrics.start_time = time.monotonic()
+             async with session.post(

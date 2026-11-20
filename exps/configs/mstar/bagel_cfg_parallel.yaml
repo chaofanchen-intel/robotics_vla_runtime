@@ -1,0 +1,46 @@
+# Paper topology (3 GPUs, one rank per CFG branch; encoders / VAE colocated with rank 0): copy of external/mstar/configs/bagel_cfg_parallel.yaml.
+# Used by `--opt bagel.topology=cfg-parallel` (experiment baseline-bagel-cfgpar). Needs 3 GPUs: not plannable on a single-GPU machine.
+model: "bagel"
+max_seq_len: 32768
+max_concurrent_requests: 16
+
+resources:
+  kv:
+    cpu_offload_pages: 2048
+
+node_groups:
+  - node_names:
+      - vit_encoder
+    ranks:
+      - 0
+
+  - node_names:
+      - vae_encoder
+      - vae_decoder
+    ranks:
+      - 0
+
+  # Main LLM: handles all prefill + decode + the denoise steps on LLM alone,
+  # the main branch of the CFG window, and combine_cfg
+  - node_names:
+      - LLM
+      - combine_cfg
+    ranks:
+      - 0
+
+  # CFG text branch (separate GPU, only active during a request's CFG window)
+  - node_names:
+      - LLM_cfg_text
+    ranks:
+      - 1
+    graph_walks:
+      - image_gen_cfg2
+      - image_gen_cfg3
+
+  # CFG img branch (separate GPU, only active during an edit's CFG window)
+  - node_names:
+      - LLM_cfg_img
+    ranks:
+      - 2
+    graph_walks:
+      - image_gen_cfg3

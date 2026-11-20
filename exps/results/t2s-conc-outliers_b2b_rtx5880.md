@@ -1,0 +1,17 @@
+# Qwen3-Omni T2S at B = 1 / 4 / 16: how often does a response fail the read-aloud contract (record, do not void)?
+
+**Question.** t2s-concurrency-fair voided two B = 16 cells in the precondition phase: M* returned the right text but 20.5 s of audio for a 64-character sentence (wave 5, request 2), vLLM-Omni returned 1.42 s of audio for a 43-character sentence (band floor 1.43 s, so a 0.7% miss: the 30 chars/s ceiling was too tight and is now 36). Is the M* long-audio response a rare random event or tied to concurrency, and is anything similar happening in vLLM-Omni / SGLang-Omni?
+
+**Pre-registered reading.** analyze_t2s_outliers.py: every response's chars per second against the band, per framework and B, with the fixture row of each outlier. Outliers at B = 16 only = concurrency-dependent (state shared between requests in a wave); outliers at B = 1 too = sampling or the Talker's stop condition; the same fixture row failing again = prompt-specific. The contract runs in record mode (`qwen.contract=record`): responses are saved and flagged, never void the cell.
+
+**Caveats.** Durations are the only judge of 'not the target sentence' besides the returned-text similarity (M* returned the right text for the 20.5 s response, so duration is what caught it); nobody listened to the audio. 30 measured waves + 10 precondition waves per cell: 640 responses at B = 16.
+
+Campaigns: `T2S_CONC_OUTLIERS_RECORD_02_B2B` (record, back-to-back)
+
+Headline = pooled p50 of ms per audio-second over every measured request of every start; [min–max] = per-start medians. `clean` = share of requests with no clock-event (throttle) reason, SM clock held >= 98% of nominal and a clock spread <= 60 MHz during the request; it does not test temperature. T °C = mean GPU temperature at request start, SM MHz = mean clock during the request: read both beside `clean`.
+
+| framework | case | arm | starts | n | ms per audio-second p50 [start range] | clean | T °C | SM MHz | vs record |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| mstar | verbatim-en | record | 1 | 30 | 92.9 [92.9–92.9] | 0% | 48 | 2,678 | - |
+| mstar | verbatim-en-b4 | record | 1 | 30 | 43.7 [43.7–43.7] | 0% | 45 | 2,685 | - |
+| mstar | verbatim-en-b16 | record | 1 | 30 | 21.3 [21.3–21.3] | 0% | 46 | 2,685 | - |

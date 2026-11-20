@@ -1,0 +1,50 @@
+# M* BAGEL CFG-parallel on THREE 48 GiB RTX 5880 (the paper's 3-GPU topology: LLM + combine_cfg + ViT/VAE on rank 0, the text-CFG branch on rank 1,
+# the image-CFG branch on rank 2). Each rank holds a full 29 GB copy of the LLM; the upstream KV pool (2048 pages x 128 tokens ~ 15 GB) does not fit
+# beside it on 48 GiB (see bagel_single_gpu_kv512.yaml), so the pool is capped at 512 pages (~3.75 GB, 65k tokens: one 1024x1024 three-branch request
+# is ~13k tokens). Ranks are the free cards the harness picked (CUDA_VISIBLE_DEVICES renumbers them 0..2); there is no NVLink between 5880s, so the
+# per-step branch exchange goes over PCIe/host memory (the paper: NVLink).
+model: "bagel"
+max_seq_len: 32768
+max_concurrent_requests: 16
+
+resources:
+  kv:
+    max_num_pages: 512
+    cpu_offload_pages: 1024
+
+node_groups:
+  - node_names:
+      - vit_encoder
+    ranks:
+      - 0
+
+  - node_names:
+      - vae_encoder
+      - vae_decoder
+    ranks:
+      - 0
+
+  # Main LLM: handles all prefill + decode + the denoise steps on LLM alone,
+  # the main branch of the CFG window, and combine_cfg
+  - node_names:
+      - LLM
+      - combine_cfg
+    ranks:
+      - 0
+
+  # CFG text branch (separate GPU, only active during a request's CFG window)
+  - node_names:
+      - LLM_cfg_text
+    ranks:
+      - 1
+    graph_walks:
+      - image_gen_cfg2
+      - image_gen_cfg3
+
+  # CFG img branch (separate GPU, only active during an edit's CFG window)
+  - node_names:
+      - LLM_cfg_img
+    ranks:
+      - 2
+    graph_walks:
+      - image_gen_cfg3

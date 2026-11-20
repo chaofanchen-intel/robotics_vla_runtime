@@ -1,0 +1,32 @@
+# COUNTERFACTUAL, used only through `--opt config.mstar=...`: qwen3omni_3gpu_thinker_tp2_chunk4096.yaml plus one extra Thinker prefill graph bucket (1,152).
+# Result (qwen-prefill-len / qwen-prefill-chunk-nsys, exps/results/mstar-advantage-attribution_rtx5880.md section 9.6): with budget 4,096 the 1,072-token prompt (1,024 body +
+# 48 template) is one step; the default ladder captures only ONE 2,048 prefill graph (bs=32) on this card, so a bs=1 step is replayed in it, padded to 2,048
+# (TTFT 156 ms). With a 1,152 rung the step replays at 1,152 (113 ms); the 2,048 graph is then no longer captured. Only the ladder
+# (model_kwargs.prefill_token_buckets) and the budget differ from the default recipe.
+# Not a baseline; see exps/results/mstar-advantage-attribution_rtx5880.md.
+# Three-RTX-5880 deployment (the fewest cards that hold the model): Thinker TP=2 on ranks 0-1, Talker and Code2Wav
+# together on rank 2. The 30B Thinker is ~61 GB in BF16 and needs two 48 GiB cards; keeping the Talker on its own card
+# preserves the paper's "Thinker and Talker on separate devices" topology (2xH200 there).
+# The 8k context and smaller Thinker KV pool leave room for graph workspaces on 48 GiB cards while retaining enough
+# capacity for the smoke/profile cases.
+model: "qwen3_omni"
+max_seq_len: 8192
+resources:
+  thinker_kv:
+    max_num_pages: 512
+    cpu_offload_pages: 1024
+node_groups:
+  - node_names: [Thinker]
+    ranks: [0, 1]
+    tp_size: 2
+  - node_names: [audio_encoder, vision_encoder]
+    ranks: [0]
+  - node_names: [Talker]
+    ranks: [2]
+  - node_names: [Code2Wav]
+    ranks: [2]
+max_batch_tokens:
+  Thinker:
+    thinker_mixed: 4096
+model_kwargs:
+  prefill_token_buckets: [128, 256, 512, 1024, 1152, 2048]

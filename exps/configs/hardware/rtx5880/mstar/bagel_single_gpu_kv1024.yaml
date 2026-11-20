@@ -1,0 +1,30 @@
+# COUNTERFACTUAL, used only through `--opt config.mstar=...` (bagel-kv-pool): the shipped one-card BAGEL recipe with the KV pool at 1,024 pages
+# (~7.5 GB) instead of 512 (~3.75 GB). Question: does the pool size change the latency of one request at B = 1 on the 48 GiB card? If it does not,
+# the 512-page pool is not what holds M*'s BAGEL numbers down on the 5880. Not a baseline.
+# M* BAGEL on ONE 48 GiB RTX 5880. The default KV pool (max_num_pages 2048 x 128 tokens ~ 15 GB for BAGEL's 28 layers x 4 KV heads x 128)
+# does not fit beside ~29 GB of weights, 2 GiB of FlashInfer workspaces and the graph captures: the 512x512 three-branch, 512x512 I2I and
+# every 1024x1024 request ran out of memory. 512 pages (~3.75 GB, 65k tokens) are enough for one request at the paper's size
+# (three CFG branches of a 1024x1024 image ~13k tokens) and for I2T at B=16, and leave ~11 GB for activations and the VAE.
+# The pool is capacity only: at B=1 it does not change the work per step.
+model: "bagel"
+max_seq_len: 32768
+resources:
+  kv:
+    max_num_pages: 1024
+
+node_groups:
+  - node_names:
+      - vit_encoder
+    ranks:
+      - 0
+
+  - node_names:
+      - vae_encoder
+      - vae_decoder
+    ranks:
+      - 0
+
+  - node_names:
+      - LLM
+    ranks:
+      - 0

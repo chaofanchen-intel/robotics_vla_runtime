@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "ms": {
+      "()": "vllm.logging_utils.NewLineFormatter",
+      "datefmt": "%m-%d %H:%M:%S",
+      "format": "(%(processName)s pid=%(process)d) %(levelname)s %(asctime)s.%(msecs)03d [%(filename)s:%(lineno)d] %(message)s"
+    }
+  },
+  "handlers": {
+    "ms": {"class": "logging.StreamHandler", "formatter": "ms", "level": "INFO", "stream": "ext://sys.stdout"}
+  },
+  "loggers": {
+    "vllm": {"handlers": ["ms"], "level": "INFO", "propagate": false},
+    "vllm_omni": {"handlers": ["ms"], "level": "INFO", "propagate": false}
+  }
+}

@@ -1,0 +1,17 @@
+diff --git a/mstar/model/vjepa2/vjepa2_model.py b/mstar/model/vjepa2/vjepa2_model.py
+index 79214d8..7d570c5 100644
+--- a/mstar/model/vjepa2/vjepa2_model.py
++++ b/mstar/model/vjepa2/vjepa2_model.py
+@@ -1146,6 +1146,12 @@ class VJepa2ACModel(VJepa2Model):
+         "num_hidden_layers": 40,
+         "num_attention_heads": 22,
+         "mlp_ratio": 48 / 11,
++        # exp3_max_rollout_horizon: the stock VJepa2Config default is 16, which silently
++        # clamps a requested H=30 rollout to 16 steps (vjepa2_model.py's
++        # step_metadata["rollout_horizon"] = max(1, min(requested, cap))).
++        # The paper's horizons are H={4,15,30}; 32 covers all three and stays
++        # under the AC predictor's grid_depth attention-mask limit of 32.
++        "max_rollout_horizon": 32,
+     }
+ 
+     def __init__(

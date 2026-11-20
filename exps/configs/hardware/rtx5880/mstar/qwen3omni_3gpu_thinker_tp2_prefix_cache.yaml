@@ -1,0 +1,26 @@
+# COUNTERFACTUAL, used only through `--opt config.mstar=...`: the TP=2 recipe with the Thinker's KV prefix cache switched ON.
+# M* opens it by default on one rank but not across TP ranks (`prefix_cache_tp: false`; server.log: "KV thinker_kv: prefix cache
+# off at world size 2"). It cannot be combined with cpu_offload_pages, so offload is set to 0 here as well. Not a baseline.
+# Three-RTX-5880 deployment (the fewest cards that hold the model): Thinker TP=2 on ranks 0-1, Talker and Code2Wav
+# together on rank 2. The 30B Thinker is ~61 GB in BF16 and needs two 48 GiB cards; keeping the Talker on its own card
+# preserves the paper's "Thinker and Talker on separate devices" topology (2xH200 there).
+# The 8k context and smaller Thinker KV pool leave room for graph workspaces on 48 GiB cards while retaining enough
+# capacity for the smoke/profile cases.
+model: "qwen3_omni"
+max_seq_len: 8192
+resources:
+  thinker_kv:
+    max_num_pages: 512
+    cpu_offload_pages: 0
+    prefix_cache_tp: true
+    prefix_cache_salt: qwen3-omni-30b-a3b-instruct
+node_groups:
+  - node_names: [Thinker]
+    ranks: [0, 1]
+    tp_size: 2
+  - node_names: [audio_encoder, vision_encoder]
+    ranks: [0]
+  - node_names: [Talker]
+    ranks: [2]
+  - node_names: [Code2Wav]
+    ranks: [2]

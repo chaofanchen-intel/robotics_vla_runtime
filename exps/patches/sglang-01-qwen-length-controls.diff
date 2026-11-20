@@ -1,0 +1,150 @@
+diff --git a/sglang_omni/client/types.py b/sglang_omni/client/types.py
+index 8b4e549..ca30560 100644
+--- a/sglang_omni/client/types.py
++++ b/sglang_omni/client/types.py
+@@ -103,6 +103,8 @@ class SamplingParams:
+     stop_token_ids: list[int] = field(default_factory=list)
+     seed: int | None = None
+     max_new_tokens: int | None = None
++    min_new_tokens: int | None = None
++    ignore_eos: bool = False
+
+     def to_dict(self) -> dict[str, object]:
+         # note (ratish): a field the caller left unset stays out, so the stage
+@@ -115,7 +117,10 @@ class SamplingParams:
+             "repetition_penalty": self.repetition_penalty,
+             "seed": self.seed,
+             "max_new_tokens": self.max_new_tokens,
++            "min_new_tokens": self.min_new_tokens,
+         }
++        if self.ignore_eos:
++            values["ignore_eos"] = True
+         return {
+             **{name: value for name, value in values.items() if value is not None},
+             "stop": list(self.stop),
+diff --git a/sglang_omni/models/qwen3_omni/request_builders.py b/sglang_omni/models/qwen3_omni/request_builders.py
+index 0e36d8c..5f77766 100644
+--- a/sglang_omni/models/qwen3_omni/request_builders.py
++++ b/sglang_omni/models/qwen3_omni/request_builders.py
+@@ -779,6 +779,8 @@ def build_sglang_thinker_request(
+         stop=stop,
+         stop_token_ids=stop_token_ids,
+         sampling_seed=seed,
++        min_new_tokens=params.get("min_new_tokens") or 0,
++        ignore_eos=params.get("ignore_eos", False),
+     )
+     sampling_params.normalize(tokenizer)
+     sampling_params.verify(vocab_size)
+diff --git a/sglang_omni/serve/openai_api.py b/sglang_omni/serve/openai_api.py
+index 3383418..e18b8cc 100644
+--- a/sglang_omni/serve/openai_api.py
++++ b/sglang_omni/serve/openai_api.py
+@@ -1372,6 +1372,8 @@ def build_chat_generate_request(req: ChatCompletionRequest) -> GenerateRequest:
+         stop=stop,
+         seed=req.seed,
+         max_new_tokens=req.effective_max_tokens,
++        min_new_tokens=req.min_tokens,
++        ignore_eos=req.ignore_eos or False,
+     )
+
+     # Convert messages
+diff --git a/sglang_omni/serve/protocol.py b/sglang_omni/serve/protocol.py
+index d6a9042..e443053 100644
+--- a/sglang_omni/serve/protocol.py
++++ b/sglang_omni/serve/protocol.py
+@@ -95,6 +95,8 @@ class ChatCompletionRequest(BaseModel):
+     repetition_penalty: float | None = None
+     max_tokens: int | None = Field(default=None, ge=1)
+     max_completion_tokens: int | None = Field(default=None, ge=1)
++    min_tokens: int | None = Field(default=None, ge=0)
++    ignore_eos: bool | None = None
+     stop: str | list[str] | None = None
+     seed: int | None = None
+
+diff --git a/tests/unit_test/qwen3_omni/test_request_builder_text_only.py b/tests/unit_test/qwen3_omni/test_request_builder_text_only.py
+index 9b17b96..366989c 100644
+--- a/tests/unit_test/qwen3_omni/test_request_builder_text_only.py
++++ b/tests/unit_test/qwen3_omni/test_request_builder_text_only.py
+@@ -107,7 +107,35 @@ def test_every_request_with_media_writes_its_prompt_rows_on_a_speech_server(
+         assert request.prompt_hidden_positions.tolist() == positions
+
+
+-def test_nested_non_dict_model_inputs_fail_loudly(monkeypatch):
++def test_qwen_thinker_sampling_honors_min_tokens_and_ignore_eos(monkeypatch):
++    patch_sampling_validation(monkeypatch)
++    state = make_qwen_state()
++
++    request = build_sglang_thinker_request(
++        state,
++        params={
++            "max_new_tokens": 256,
++            "min_new_tokens": 256,
++            "ignore_eos": True,
++        },
++        tokenizer=FakeQwenTokenizer(),
++        vocab_size=256,
++        request_id="fixed-length-text",
++        thinker_config=SimpleNamespace(
++            image_token_id=55,
++            video_token_id=66,
++            audio_token_id=77,
++        ),
++        capture_prompt_hidden_states=False,
++    )
++
++    assert request.req.sampling_params.max_new_tokens == 256
++    assert request.req.sampling_params.min_new_tokens == 256
++    assert request.req.sampling_params.ignore_eos is True
++
++
++@pytest.mark.parametrize("entrypoint", ["generic", "sglang"])
++def test_nested_non_dict_model_inputs_fail_loudly(monkeypatch, entrypoint):
+     patch_sampling_validation(monkeypatch)
+     state = make_qwen_state(thinker_inputs={"model_inputs": ["malformed"]})
+
+@@ -115,7 +143,17 @@ def test_nested_non_dict_model_inputs_fail_loudly(monkeypatch):
+         TypeError,
+         match="Qwen3-Omni thinker model_inputs must be a dict when provided",
+     ):
+-        build_thinker_request(state, params={"max_new_tokens": 3})
++        if entrypoint == "generic":
++            build_thinker_request(state, params={"max_new_tokens": 3})
++        else:
++            build_sglang_thinker_request(
++                state,
++                params={"max_new_tokens": 3},
++                tokenizer=FakeQwenTokenizer(),
++                vocab_size=256,
++                request_id="malformed-model-inputs",
++                capture_prompt_hidden_states=False,
++            )
+
+
+ @pytest.mark.parametrize("token_id", [-1, 256])
+diff --git a/tests/unit_test/serve/test_openai_api.py b/tests/unit_test/serve/test_openai_api.py
+index 6c1cd3d..360fcc6 100644
+--- a/tests/unit_test/serve/test_openai_api.py
++++ b/tests/unit_test/serve/test_openai_api.py
+@@ -1622,6 +1622,22 @@ def test_chat_request_leaves_unset_sampling_fields_out_of_params(
+     } & set(params)
+
+
++def test_chat_request_forwards_min_tokens_and_ignore_eos() -> None:
++    req = ChatCompletionRequest(
++        model="qwen3-omni",
++        messages=[{"role": "user", "content": "write a long answer"}],
++        max_tokens=256,
++        min_tokens=256,
++        ignore_eos=True,
++    )
++
++    params = Client.build_omni_request(build_chat_generate_request(req)).params
++
++    assert params["max_new_tokens"] == 256
++    assert params["min_new_tokens"] == 256
++    assert params["ignore_eos"] is True
++
++
+ @pytest.mark.parametrize("use_audio_in_video", [True, False])
+ @pytest.mark.parametrize(
+     ("content", "videos"),

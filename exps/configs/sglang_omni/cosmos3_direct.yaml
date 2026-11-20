@@ -1,0 +1,10 @@
+# Cosmos3-Nano on SGLang-Omni, direct generation (no Reasoner): config_cls Cosmos3PipelineConfig serves the native SGLang multimodal_gen image route
+# (POST /v1/images/generations) from the generation stage, on visible GPU 0 (docs/cookbook/cosmos3_nano.md, "Direct generation"). `--model-path` on the
+# command line overrides model_path below. Guardrails are disabled by the launcher (SGLANG_DISABLE_COSMOS3_GUARDRAILS=1): vLLM-Omni runs with
+# guardrails false and M* has none, so none of the three does safety checking inside the measured request.
+config_cls: Cosmos3PipelineConfig
+model_path: nvidia/Cosmos3-Nano
+stages:
+  generation:
+    factory:
+      output_dir: /tmp/sglang_omni_cosmos3_outputs

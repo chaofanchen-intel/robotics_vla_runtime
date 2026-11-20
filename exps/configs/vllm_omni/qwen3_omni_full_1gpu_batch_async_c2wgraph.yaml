@@ -1,0 +1,69 @@
+# qwen3_omni_full_1gpu_batch_async.yaml with ONE change: stage 2 (Code2Wav) enforce_eager: false (upstream's setting), i.e. the concurrency
+# (max_num_seqs=16) counterpart of qwen3_omni_full_1gpu_default_async_c2wgraph.yaml, the best single-GPU vLLM-Omni recipe for T2S.
+# qwen3_omni_full_1gpu_batch.yaml with ONE change: async_chunk: true (upstream default). Concurrency (B>1) counterpart of qwen3_omni_full_1gpu_default_async.yaml;
+# the sync batch yaml is what the headline T2S B=1..16 sweep ran vLLM-Omni with. Untested at max_num_seqs=16: a start that fails is a result, not a retry.
+# CONCURRENCY VARIANT of qwen3_omni_full_1gpu.yaml: identical except max_num_seqs=16 on every stage.
+# The C=1 recipe pins max_num_seqs=1, which would serialise any B>1 sweep and measure queueing, not
+# batching. Use only for the concurrency cases; never mix its numbers with the C=1 cohort.
+# Single-GPU full-pipeline research override.
+# All stages share cuda:0; this tests feasibility, not the verified two-GPU profile.
+async_chunk: true
+
+connectors:
+  connector_of_shared_memory:
+    name: SharedMemoryConnector
+    extra:
+      initial_codec_chunk_frames: 4
+      codec_chunk_frames: 25
+      codec_left_context_frames: 25
+
+stages:
+  - stage_id: 0
+    max_num_batched_tokens: 8192
+    max_num_seqs: 16
+    max_model_len: 8192
+    gpu_memory_utilization: 0.65
+    moe_backend: triton
+    trust_remote_code: true
+    enable_prefix_caching: false
+    tensor_parallel_size: 1
+    devices: "0"
+    default_sampling_params:
+      temperature: 0.0
+      max_tokens: 128
+
+  - stage_id: 1
+    max_num_batched_tokens: 4096
+    max_num_seqs: 16
+    gpu_memory_utilization: 0.20
+    moe_backend: triton
+    trust_remote_code: true
+    enable_prefix_caching: false
+    tensor_parallel_size: 1
+    devices: "0"
+    input_connectors:
+      from_stage_0: connector_of_shared_memory
+    default_sampling_params:
+      seed: 42
+      temperature: 0.9
+      top_k: 50
+      max_tokens: 256
+      repetition_penalty: 1.05
+
+  - stage_id: 2
+    max_num_batched_tokens: 4096
+    max_num_seqs: 16
+    gpu_memory_utilization: 0.10
+    enforce_eager: false
+    trust_remote_code: true
+    enable_prefix_caching: false
+    tensor_parallel_size: 1
+    devices: "0"
+    input_connectors:
+      from_stage_1: connector_of_shared_memory
+    default_sampling_params:
+      temperature: 0.0
+      top_p: 1.0
+      top_k: -1
+      max_tokens: 4096
+      repetition_penalty: 1.1

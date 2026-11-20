@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "标定前的保守默认值",
+  "status": "default_not_measured",
+  "why_these_values": {
+    "cooldown_target_c": "保守默认 70 °C，留在历史热轨迹观察到的约 80 °C 掉频拐点以下；拐点附近曾观察到时钟降至 1710 MHz、延迟上升约 18%。这些数值仅解释默认值，不读取旧轮次文件；新硬件仍须标定。",
+    "cooldown_continuous_s": "三项门条件连续满足 30 秒，避免单次偶然采样误放行。",
+    "measured": "每次 fresh start 默认 5 个测量请求、共 5 个 starts；首轮同负载不同 starts 曾出现 94.75/118.66/132.08 ms 的差异。标定后的 case 推荐值可覆盖本默认值。",
+    "preconditions": "每次 start 先发 1 个不计分请求，消化 JIT、CUDA graph capture 和分配器初始化。",
+    "loaded_idle_*": "模型常驻时采用相同目标温度，但服务级门需要连续满足 60 秒。"
+  },
+  "replace_this_file_how": "先运行 `envs/mstar/bin/python exps/calibrate.py --tasks bagel --profile nightly --dry-run` 查看规模；预留 GPU 时间后加 `--execute`，生成 profiles/calibrated.json。只有获得有效观测的 task/case 才覆盖这里的默认值；详见 exps/README.md。",
+  "global": {
+    "repeats": 3,
+    "measured": 3,
+    "preconditions": 1,
+    "cooldown_target_c": 70.0,
+    "memory_cooldown_target_c": null,
+    "cooldown_continuous_s": 30.0,
+    "cooldown_timeout_s": 900.0,
+    "loaded_idle_target_c": 70.0,
+    "loaded_idle_continuous_s": 60.0,
+    "loaded_idle_timeout_s": 1800.0
+  },
+  "tasks": {
+    "bagel": {
+      "global": {
+        "cooldown_timeout_s": 1200.0
+      },
+      "cases": {}
+    },
+    "qwen_t2s": {
+      "global": {
+        "cooldown_timeout_s": 1200.0
+      },
+      "cases": {}
+    },
+    "vjepa_ac": {
+      "global": {},
+      "cases": {}
+    }
+  }
+}

@@ -1,0 +1,55 @@
+# COUNTERFACTUAL for the bagel-i2i-kvtimeout experiment: bagel_two_stage_2gpu_mooncake_tcp_prefix_cache_seqs16.yaml (Thinker max_num_seqs 16) with the DiT stage's KV receive timeout raised from the 30 s default to 900 s (stage 1 `omni_kv_config.recv_timeout`. The KV roles still come from the pipeline topology; the yaml adds recv_timeout, merged by `merge_omni_kv_config` in vLLM-Omni (patch vllm-02). Before vllm-02 this value was dropped without an error). Never a baseline.
+# COUNTERFACTUAL for the bagel-i2i-concurrency experiment: bagel_two_stage_2gpu_mooncake_tcp_prefix_cache.yaml with the Thinker max_num_seqs raised from 3 to 16 (the DiT stage stays at 1). Used only via `--opt config.vllm-omni=...`; never a baseline.
+# COUNTERFACTUAL, used only through `--opt config.vllm-omni=...` (experiment `bagel-i2i-fair`): bagel_two_stage_2gpu_mooncake_tcp.yaml with the Thinker's
+# prefix caching ON (stage 0 `enable_prefix_caching: true`), i.e. both differences found so far (default connector, Thinker cache off) removed. Never a baseline.
+# COUNTERFACTUAL, used only through `--opt config.vllm-omni=...` (experiment `bagel-connector`): the default two-stage BAGEL deploy with the
+# Thinker -> DiT edge carried by MooncakeTransferEngineConnector (TCP, pinned CPU pool) instead of SharedMemoryConnector. Needs the packages from exps/tools/install_omni_connectors.sh on
+# PYTHONPATH (the arm sets it). Everything else is identical to bagel_two_stage_2gpu.yaml, so a difference is the connector.
+# Split vLLM-Omni's BAGEL Thinker and DiT stages across two 48 GiB cards.
+async_chunk: false
+
+stages:
+  - stage_id: 0
+    max_num_batched_tokens: 32768
+    max_num_seqs: 16
+    gpu_memory_utilization: 0.9
+    trust_remote_code: true
+    enable_prefix_caching: true
+    devices: "0"
+    output_connectors:
+      to_stage_1: kv_connector
+    default_sampling_params:
+      temperature: 0.4
+      top_p: 0.9
+      top_k: 1
+      max_tokens: 2048
+      seed: 52
+      detokenize: true
+      repetition_penalty: 1.05
+
+  - stage_id: 1
+    max_num_batched_tokens: 32768
+    max_num_seqs: 1
+    gpu_memory_utilization: 0.9
+    enforce_eager: true
+    trust_remote_code: true
+    enable_prefix_caching: false
+    omni_kv_config:
+      need_recv_cache: true
+      recv_timeout: 900
+    devices: "1"
+    input_connectors:
+      from_stage_0: kv_connector
+    default_sampling_params:
+      seed: 52
+
+connectors:
+  kv_connector:
+    name: MooncakeTransferEngineConnector
+    extra:
+      host: "127.0.0.1"          # no RDMA NIC on this box: the TCP transport over loopback
+      zmq_port: 50051
+      protocol: "tcp"
+      device_name: ""
+      memory_pool_size: 4294967296
+      memory_pool_device: "cpu"  # pinned host pool: GPU -> pool -> loopback TCP -> pool -> GPU, no byte serialisation

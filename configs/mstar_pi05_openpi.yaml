@@ -1,0 +1,35 @@
+# M* (external_latest/mstar, 2c8ffde8) serving config for lerobot/pi05_base over the OpenPI WebSocket, 2026-11-20.
+# Base: external_latest/mstar/configs/pi05.yaml (the latest default node layout: LLM and action_expert share one
+# node group, which the latest deployment validator requires). Added: num_flow_steps 10 (the probe's step count),
+# and the openpi block (cameras in slot order, one 32-dim normalised state, all 32 action dims).
+model: "pi05"
+max_seq_len: 2048
+
+model_kwargs:
+  num_flow_steps: 10
+
+# FA2, not the FA3 kernel "auto" picks on SM90 (copied from the latest default config).
+resources:
+  attn:
+    flashinfer_backend: fa2
+
+node_groups:
+  - node_names:
+      - vit_encoder
+    ranks:
+      - 0
+
+  - node_names:
+      - LLM
+      - action_expert
+    ranks:
+      - 0
+
+openpi:
+  images:
+    - observation.images.base_0_rgb
+    - observation.images.left_wrist_0_rgb
+    - observation.images.right_wrist_0_rgb
+  state:
+    - state
+  action_dims: 32

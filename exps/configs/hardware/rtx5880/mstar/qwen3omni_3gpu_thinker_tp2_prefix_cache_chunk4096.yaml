@@ -1,0 +1,25 @@
+# COUNTERFACTUAL, used only through `--opt config.mstar=...`: Thinker KV prefix cache across the TP ranks (`prefix_cache_tp: true`, offload 0) AND a 4,096-token chunk budget.
+# The plain prefix-cache recipe (qwen3omni_3gpu_thinker_tp2_prefix_cache.yaml) dies on the first cache hit: `TP ranks diverged: KV thinker_kv: rank 0 leased 8 cached pages ...,
+# whose stream here already holds tokens or has no keys`. 8 pages x 128 = 1,024 tokens = exactly the first chunk. With the whole prompt in one chunk, a crash again means the chunk
+# boundary is not the trigger; no crash means the chunked-row path under TP is. Not a baseline.
+model: "qwen3_omni"
+max_seq_len: 8192
+resources:
+  thinker_kv:
+    max_num_pages: 512
+    cpu_offload_pages: 0
+    prefix_cache_tp: true
+    prefix_cache_salt: qwen3-omni-30b-a3b-instruct
+node_groups:
+  - node_names: [Thinker]
+    ranks: [0, 1]
+    tp_size: 2
+  - node_names: [audio_encoder, vision_encoder]
+    ranks: [0]
+  - node_names: [Talker]
+    ranks: [2]
+  - node_names: [Code2Wav]
+    ranks: [2]
+max_batch_tokens:
+  Thinker:
+    thinker_mixed: 4096

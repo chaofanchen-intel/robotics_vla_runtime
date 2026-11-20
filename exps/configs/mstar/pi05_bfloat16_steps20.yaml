@@ -1,0 +1,17 @@
+# pi05-steps counterfactual: identical to pi05_bfloat16.yaml except model_kwargs.num_flow_steps (20 flow steps).
+model: "pi05"
+max_seq_len: 2048
+
+model_kwargs:
+  num_flow_steps: 20
+
+node_groups:
+  - node_names:
+      - vit_encoder
+    ranks:
+      - 0
+
+  - node_names:
+      - LLM
+    ranks:
+      - 0

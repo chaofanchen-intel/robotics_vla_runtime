@@ -1,0 +1,45 @@
+# COUNTERFACTUAL, used only through `--opt config.vllm-omni=...` (experiment `bagel-connector`): the default two-stage BAGEL deploy with the
+# Thinker -> DiT edge carried by NixlConnector (UCX) instead of SharedMemoryConnector. Needs the packages from exps/tools/install_omni_connectors.sh on
+# PYTHONPATH (the arm sets it). Everything else is identical to bagel_two_stage_2gpu.yaml, so a difference is the connector.
+# Split vLLM-Omni's BAGEL Thinker and DiT stages across two 48 GiB cards.
+async_chunk: false
+
+stages:
+  - stage_id: 0
+    max_num_batched_tokens: 32768
+    max_num_seqs: 3
+    gpu_memory_utilization: 0.9
+    trust_remote_code: true
+    enable_prefix_caching: false
+    devices: "0"
+    output_connectors:
+      to_stage_1: kv_connector
+    default_sampling_params:
+      temperature: 0.4
+      top_p: 0.9
+      top_k: 1
+      max_tokens: 2048
+      seed: 52
+      detokenize: true
+      repetition_penalty: 1.05
+
+  - stage_id: 1
+    max_num_batched_tokens: 32768
+    max_num_seqs: 1
+    gpu_memory_utilization: 0.9
+    enforce_eager: true
+    trust_remote_code: true
+    enable_prefix_caching: false
+    devices: "1"
+    input_connectors:
+      from_stage_0: kv_connector
+    default_sampling_params:
+      seed: 52
+
+connectors:
+  kv_connector:
+    name: NixlConnector
+    extra:
+      host: "127.0.0.1"
+      zmq_port: 50061
+      backends: ["UCX"]          # UCX picks cuda_ipc / host staging / tcp for the pair of cards (no NVLink here)

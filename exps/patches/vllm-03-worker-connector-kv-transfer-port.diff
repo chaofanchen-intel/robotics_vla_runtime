@@ -1,0 +1,20 @@
+diff --git a/vllm_omni/distributed/omni_connectors/model_runner/omni_connector_runtime.py b/vllm_omni/distributed/omni_connectors/model_runner/omni_connector_runtime.py
+index 6667c0e4..d417d56e 100644
+--- a/vllm_omni/distributed/omni_connectors/model_runner/omni_connector_runtime.py
++++ b/vllm_omni/distributed/omni_connectors/model_runner/omni_connector_runtime.py
+@@ -588,10 +588,15 @@ class _OmniConnectorRuntimeMixin:
+ 
+         stage_id = int(getattr(model_config, "stage_id", extra.get("stage_id", 0)))
+         role = extra.get("role")
++        # Worker-side payload connectors use the "kv_transfer" port block. The
++        # scheduler-side chunk connector of the same stage uses "request_forwarding"
++        # with the same base port, so both bound one ZMQ port (e.g. 50051) and the
++        # second bind failed. The kv_transfer offset moves the worker to 50151.
+         spec = resolve_connector_spec(
+             ConnectorSpec(name=name, extra=extra),
+             stage_id=stage_id,
+             role=str(role) if role is not None else None,
++            purpose="kv_transfer",
+             local_rank=get_local_tp_rank(),
+             replica_id=get_omni_replica_id(),
+         )

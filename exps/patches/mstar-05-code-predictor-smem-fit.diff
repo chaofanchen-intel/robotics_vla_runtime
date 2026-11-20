@@ -1,0 +1,69 @@
+diff --git a/mstar/model/components/code_predictor_kernels.py b/mstar/model/components/code_predictor_kernels.py
+index b0465a5..28f386d 100644
+--- a/mstar/model/components/code_predictor_kernels.py
++++ b/mstar/model/components/code_predictor_kernels.py
+@@ -30,6 +30,7 @@ import torch
+ import triton
+ import triton.language as tl
+ from torch import nn
++from triton.runtime.errors import OutOfResources
+ 
+ from mstar.model.components.decoder_layer import DecoderLayer
+ from mstar.model.components.distributed import ParallelGatedMLP
+@@ -315,6 +316,10 @@ def _cp_linear_kernel(
+         tl.store(P + pid * MAX_ROWS + rm, tl.sum(yf * yf, 1))
+ 
+ 
++#: (tile configuration) -> (block_k, num_stages) that fits this GPU's shared memory; see ``cp_linear``
++_CP_SMEM_FIT: dict[tuple, tuple[int, int]] = {}
++
++
+ @torch.compiler.disable
+ def cp_linear(
+     x: torch.Tensor, w: torch.Tensor, *, out: torch.Tensor | None = None,
+@@ -364,16 +369,35 @@ def cp_linear(
+     assert rows <= _MAX_ROWS and n % block_n == 0 and k % block_k == 0 and w.stride(1) == 1 and x.stride(1) == 1
+     if epi in (1, 3) and block_m >= 16:
+         assert n // block_n <= _MAX_PARTIALS and partials is not None
+-    _cp_linear_kernel[(triton.cdiv(rows, block_m), n // block_n)](
+-        x, w, up if up is not None else w, out, bias if bias is not None else w,
+-        partials if partials is not None else out,
+-        rows, k, norm_eps or 0.0, n_part,
+-        x.stride(0), w.stride(0), out.stride(0),
+-        NORM=norm, EPI=epi,
+-        NP=_MAX_PARTIALS, MAX_ROWS=_MAX_ROWS,
+-        BLOCK_M=block_m, BLOCK_N=block_n, BLOCK_K=block_k,
+-        num_warps=warps, num_stages=stages,
+-    )
++    # The tile above is tuned for an H200 (227 KiB of shared memory per block). A card with less (Ada sm_89 allows 99 KiB)
++    # raises OutOfResources at launch: fewer pipeline stages, then a shorter K step, until the kernel fits. Remembered per
++    # shape, so only the first launch of a configuration pays for the failed attempts.
++    tuned = (block_k, stages)
++    if _CP_SMEM_FIT:  # empty on every GPU that never ran out of shared memory (H100/H200): no per-call cost there
++        block_k, stages = _CP_SMEM_FIT.get((epi, norm, block_m, block_n, tuned[0], warps, tuned[1], k), tuned)
++    start = (block_k, stages)
++    while True:
++        try:
++            _cp_linear_kernel[(triton.cdiv(rows, block_m), n // block_n)](
++                x, w, up if up is not None else w, out, bias if bias is not None else w,
++                partials if partials is not None else out,
++                rows, k, norm_eps or 0.0, n_part,
++                x.stride(0), w.stride(0), out.stride(0),
++                NORM=norm, EPI=epi,
++                NP=_MAX_PARTIALS, MAX_ROWS=_MAX_ROWS,
++                BLOCK_M=block_m, BLOCK_N=block_n, BLOCK_K=block_k,
++                num_warps=warps, num_stages=stages,
++            )
++            break
++        except OutOfResources:
++            if stages > 2:
++                stages -= 1
++            elif block_k > 64 and k % (block_k // 2) == 0:
++                block_k //= 2
++            else:
++                raise
++    if (block_k, stages) != start:
++        _CP_SMEM_FIT[(epi, norm, block_m, block_n, tuned[0], warps, tuned[1], k)] = (block_k, stages)
+     return out
+ 
+ 

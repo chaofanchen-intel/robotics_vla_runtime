@@ -1,0 +1,20 @@
+mstar-rust healthy after 40 s on port 18104
+== mstar-rust cancel
+trial 0: control 64 a_closed 86 a_open 91 ms
+trial 1: control 63 a_closed 93 a_open 96 ms
+trial 2: control 62 a_closed 94 a_open 92 ms
+trial 3: control 71 a_closed 93 a_open 92 ms
+trial 4: control 66 a_closed 88 a_open 89 ms
+trial 5: control 67 a_closed 90 a_open 91 ms
+trial 6: control 66 a_closed 90 a_open 90 ms
+trial 7: control 64 a_closed 92 a_open 93 ms
+trial 8: control 67 a_closed 89 a_open 94 ms
+trial 9: control 68 a_closed 94 a_open 92 ms
+trial 10: control 67 a_closed 94 a_open 97 ms
+trial 11: control 68 a_closed 94 a_open 94 ms
+trial 12: control 66 a_closed 95 a_open 94 ms
+trial 13: control 67 a_closed 97 a_open 97 ms
+trial 14: control 63 a_closed 94 a_open 94 ms
+wrote share/robotics_vla_runtime/runs/2026-11-20_ws-probe-cancel-v2/mstar-rust/cancel.json
+done
+EXIT 0

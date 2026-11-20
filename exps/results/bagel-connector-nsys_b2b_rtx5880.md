@@ -1,0 +1,13 @@
+# BAGEL I2I, 5 steps: Thinker / hand-off / DiT on the GPU timeline (nsys): single-stage, two-stage on SharedMemory / Mooncake / Mooncake + prefix cache, and M*
+
+**Question.** With Mooncake the hand-off itself is ~13 ms on the sender, yet two-stage is still ~1.6 s slower than single-stage at 5 steps, and server.log has no receiver-side line (the DiT process logs nothing). The first run (2 measured requests) showed per request: DiT 1.83 s of GPU work identical in every arm, the Thinker process 2.05-2.1 s busy (15.3k launches: two 5k-token branch prefills) against ~0.85 s (6.4k launches) for everything before the DiT in single-stage, and a Thinker -> DiT hand-off of ~0.28 s on Mooncake. bagel-i2i-fair then showed the Thinker prefix cache takes 1.04 s off the vLLM two-stage request and M*'s cache switch changes nothing. Does the Thinker burst of the prefix-cache arm drop to single-stage's, how many Thinker launches does M* make for the same request, and where is the remaining ~0.76 s?
+
+**Pre-registered reading.** analyze_nsys_burst_gaps.py --handoff, one table per two-stage arm (Thinker first..last, GPU busy, launches, Thinker last -> DiT first split into the KV D2H -> first H2D and first H2D -> first DiT kernel, DiT span) plus the per-process burst table; single-stage and M* run in one process, so their last burst is Thinker prefill + DiT together (single-stage: 16,605 launches, 2,627 ms busy, of which the DiT is 10,239 / ~1,775). mooncake-prefix Thinker busy near single-stage's ~0.85 s = the second branch's prefill is gone and the rest is hand-off + front end; still ~2 s = the prefix cache does not cover what the two branches share. M* launches near 16.6k = one prefill like single-stage; near 25k = two prefills (then its cache switch is inert because the work is real, not cached). nsys inflates host time: structure only. The Thinker's trace has been seen to end 3-12 s before the DiT's (the tool prints a warning): read the rows followed by a complete one, which is why four requests are measured.
+
+Campaigns: `BAGEL_CONNECTOR_NSYS_MSTAR_02_B2B` (mstar, back-to-back)
+
+Headline = pooled p50 of E2E ms over every measured request of every start; [min–max] = per-start medians. `clean` = share of requests with no clock-event (throttle) reason, SM clock held >= 98% of nominal and a clock spread <= 60 MHz during the request; it does not test temperature. T °C = mean GPU temperature at request start, SM MHz = mean clock during the request: read both beside `clean`.
+
+| framework | case | arm | starts | n | E2E ms p50 [start range] | clean | T °C | SM MHz | vs mstar |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|
+| mstar | i2i-512-srv-steps5 | mstar | 1 | 4 | 2,720 [2,720–2,720] | 0% | 42 | 1,668 | - |

@@ -1,0 +1,154 @@
+M* CUDA toolchain: /home/chaofan/workspaces/Inference_Engine_Investigation_Repo/envs/mstar/lib/python3.12/site-packages/nvidia/cu13
+M* nvcc: V13.0.88
+M* CUDA architecture: 8.9
+
+  ✓ mstar serving 'pi05' on http://127.0.0.1:18101
+
+  Python SDK:
+    from mstar import MStarClient
+    client = MStarClient("http://127.0.0.1:18101")
+    res = client.generate(text="...", output_modalities=("action",))
+
+2026-11-20 19:16:47,297 INFO [api_server] mstar.model.pi05.pi05_model: Pi05Model._load_config: applied yaml model_kwargs overrides. Before={'num_flow_steps': 10, 'action_horizon': 50, 'action_dim': 32} -> After={'num_flow_steps': 10, 'action_horizon': 50, 'action_dim': 32} (num_flow_steps is the denoising-loop iteration count, NOT the trajectory length; it is unaffected by action_horizon override)
+2026-11-20 19:16:48,102 INFO [api_server] mstar.model.pi05.pi05_model: Pi0.5 tokenizer loaded from fallback repo google/paligemma-3b-pt-224 (model repo lerobot/pi05_base has no tokenizer files)
+2026-11-20 19:16:48,169 INFO [api_server] mstar.api_server.entrypoint: API server: result threads not pinned (not pinned: the deepest idle state is C1_ACPI at 1 µs on CPUs 0-255, under the 100 µs from which pinning could pay (step_thread_core always pins anyway))
+2026-11-20 19:16:48,173 INFO [api_server] mstar.communication.tensors: SHM: swept 0 entries of dead deployment namespace fbc65e2a40c4
+2026-11-20 19:16:48,174 INFO [api_server] mstar.communication.arena: ARENA: /dev/shm has 451222 MiB free for 2 arenas and their spill files; each arena grows to 32 segments of 256 MiB (MSTAR_SHM_ARENA_MAX_SEGMENTS and _SEGMENT_MB override)
+2026-11-20 19:16:48,174 INFO [api_server] mstar.communication.communicator: control mesh transport: rust 0.1.1 from /tmp/mstar_rust_latest/mstar_rust/__init__.py
+2026-11-20 19:16:48,262 INFO [api_server] mstar.communication.arena: ARENA: grew to 1 segments (256 MiB total, 256 MiB free, largest free block 256 MiB, 0 MiB pinned)
+2026-11-20 19:16:48,263 INFO [api_server] mstar.communication.communicator: control mesh transport: rust 0.1.1 from /tmp/mstar_rust_latest/mstar_rust/__init__.py
+2026-11-20 19:16:48,264 INFO [api_server] mstar.api_server.entrypoint: Conductor process started (pid=4119518, model=pi05)
+2026-11-20 19:16:48,265 INFO [api_server] mstar.api_server.entrypoint: Waiting for workers to finish setup (loading weights, capturing accelerator graphs)...
+2026-11-20 19:16:50,732 INFO [conductor] mstar.api_server.entrypoint: yaml model_kwargs from /home/chaofan/workspaces/Inference_Engine_Investigation_Repo/share/robotics_vla_runtime/configs/mstar_pi05_openpi.yaml: {'num_flow_steps': 10} (forwarded to pi05.__init__)
+2026-11-20 19:16:52,678 INFO [conductor] mstar.model.pi05.pi05_model: Pi05Model._load_config: applied yaml model_kwargs overrides. Before={'num_flow_steps': 10, 'action_horizon': 50, 'action_dim': 32} -> After={'num_flow_steps': 10, 'action_horizon': 50, 'action_dim': 32} (num_flow_steps is the denoising-loop iteration count, NOT the trajectory length; it is unaffected by action_horizon override)
+2026-11-20 19:16:53,377 INFO [conductor] mstar.model.pi05.pi05_model: Pi0.5 tokenizer loaded from fallback repo google/paligemma-3b-pt-224 (model repo lerobot/pi05_base has no tokenizer files)
+2026-11-20 19:16:53,407 INFO [conductor] mstar.conductor.conductor: Detected worker device type: cuda
+2026-11-20 19:16:53,407 INFO [conductor] mstar.conductor.conductor: Compile caches: Inductor /home/chaofan/.cache/mstar/torchinductor, Triton /home/chaofan/.cache/mstar/torchinductor/triton
+2026-11-20 19:16:53,408 INFO [conductor] mstar.engine.resources.spec: Resource specs after YAML overrides: [KVSpec(resource_key='kv', nodes={'LLM', 'action_expert'}, config=PagedKVConfig(num_layers=18, num_kv_heads=1, head_dim=256, num_qo_heads=8, max_seq_len=2048, max_num_pages=2048, page_size=None, layout=<KVLayout.NHD: 'NHD'>, cpu_offload_pages=0, prefix_cache_salt='', prefix_cache=True, prefix_cache_tp=False, context_parallel=False, kv_lora_rank=None, qk_rope_head_dim=None), leader=None), AttentionSpec(resource_key='attn', nodes={'LLM', 'action_expert'}, config=AttentionConfig(kv_cache='kv', backend=<AttnBackend.AUTO: 'auto'>, flashinfer_backend='fa2', sm_scale=None, splits=(), decode_tensor_cores=True, decode_fmha=False, sliding_window=None, layers=None)), PositionSpec(resource_key='rope', nodes={'LLM', 'action_expert'}, config=PositionConfig(kv_cache='kv', backend=<PosBackend.ROPE: 'rope'>, scheme=<PosScheme.SEQUENTIAL: 'sequential'>, block_step=1, rotary_dim=None, interleave=False, rope_scale=1.0, rope_theta=10000.0, rope_dtype=None, rope_table_dtype=None, low_freq_factor=1.0, high_freq_factor=1.0, old_context_len=8192, longrope=None))]
+2026-11-20 19:16:58,287 INFO [conductor] mstar.communication.communicator: control mesh transport: rust 0.1.1 from /tmp/mstar_rust_latest/mstar_rust/__init__.py
+2026-11-20 19:16:58,288 INFO [conductor] mstar.conductor.conductor: Conductor waiting for 1 worker(s) to finish setup
+2026-11-20 19:16:59,452 INFO [worker_0] mstar.communication.communicator: control mesh transport: rust 0.1.1 from /tmp/mstar_rust_latest/mstar_rust/__init__.py
+2026-11-20 19:16:59,746 INFO [worker_0] mstar.communication.arena: ARENA: grew to 1 segments (256 MiB total, 256 MiB free, largest free block 256 MiB, 256 MiB pinned)
+2026-11-20 19:16:59,752 INFO [worker_0] mstar.engine.resources.spec: Resource specs after YAML overrides: [KVSpec(resource_key='kv', nodes={'LLM', 'action_expert'}, config=PagedKVConfig(num_layers=18, num_kv_heads=1, head_dim=256, num_qo_heads=8, max_seq_len=2048, max_num_pages=2048, page_size=None, layout=<KVLayout.NHD: 'NHD'>, cpu_offload_pages=0, prefix_cache_salt='', prefix_cache=True, prefix_cache_tp=False, context_parallel=False, kv_lora_rank=None, qk_rope_head_dim=None), leader=None), AttentionSpec(resource_key='attn', nodes={'LLM', 'action_expert'}, config=AttentionConfig(kv_cache='kv', backend=<AttnBackend.AUTO: 'auto'>, flashinfer_backend='fa2', sm_scale=None, splits=(), decode_tensor_cores=True, decode_fmha=False, sliding_window=None, layers=None)), PositionSpec(resource_key='rope', nodes={'LLM', 'action_expert'}, config=PositionConfig(kv_cache='kv', backend=<PosBackend.ROPE: 'rope'>, scheme=<PosScheme.SEQUENTIAL: 'sequential'>, block_step=1, rotary_dim=None, interleave=False, rope_scale=1.0, rope_theta=10000.0, rope_dtype=None, rope_table_dtype=None, low_freq_factor=1.0, high_freq_factor=1.0, old_context_len=8192, longrope=None))]
+2026-11-20 19:16:59,827 INFO [worker_0] mstar.model.pi05.pi05_model: Loading Pi0.5 weights from /home/chaofan/workspaces/Inference_Engine_Investigation_Repo/models/cache/models--lerobot--pi05_base/snapshots/22c30e5b34f9e7ab738b1b34fc2fc5ecfe2d28f0/model.safetensors
+2026-11-20 19:17:01,723 INFO [worker_0] mstar.model.pi05.pi05_model: Successfully loaded Pi0.5 submodule for LLM
+2026-11-20 19:17:01,737 INFO [worker_0] mstar.model.pi05.pi05_model: Successfully loaded Pi0.5 submodule for action_expert
+2026-11-20 19:17:02,049 INFO [worker_0] mstar.model.pi05.pi05_model: Successfully loaded Pi0.5 submodule for vit_encoder
+2026-11-20 19:17:02,078 INFO [worker_0] mstar.engine.resources.kv.manager: KV kv: 4.50 GiB on this rank, 2048 pages of 128 slots
+2026-11-20 19:17:02,090 INFO [worker_0] mstar.worker.engine_manager: Engine loaded on device cuda:0 for nodes ['LLM', 'action_expert', 'vit_encoder']
+2026-11-20 19:17:05,707 INFO [worker_0] mstar.engine.accelerator_graph_runner: LLM action_chunk[bs=4,tokens=3872] slot=0: graph executable memory, 9289 bytes a node, 15 MiB held for the walk's graphs
+2026-11-20 19:17:13,895 INFO [worker_0] mstar.engine.accelerator_graph_runner: action_expert action_chunk[bs=4,tokens=200] slot=0: graph executable memory, 8522 bytes a node, 40 MiB held for the walk's graphs
+2026-11-20 19:17:18,427 INFO [worker_0] mstar.engine.accelerator_graph_runner: vit_encoder action_chunk[bs=1,tokens=0] slot=0: graph executable memory, 11398 bytes a node, 15 MiB held for the walk's graphs
+2026-11-20 19:17:18,430 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0]: 33706 MiB free, 408 for the largest eager step
+2026-11-20 19:17:18,430 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] LLM: 9 of 9 buckets, 592 MiB predicted, 40 outside the allocator
+2026-11-20 19:17:18,430 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] action_expert: 3 of 3 buckets, 42 MiB predicted, 153 outside the allocator
+2026-11-20 19:17:18,430 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] vit_encoder: 1 of 1 buckets, 43 MiB predicted, 4 outside the allocator
+2026-11-20 19:17:18,430 INFO [worker_0] mstar.engine.resources.attn.workspace: FlashInfer workspaces of kv: 2, 1024 MiB in all
+2026-11-20 19:17:18,458 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=4,tokens=3872] (2 slots)
+2026-11-20 19:17:18,479 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=4,tokens=968] (2 slots)
+2026-11-20 19:17:18,500 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=4,tokens=512] (2 slots)
+2026-11-20 19:17:18,521 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=2,tokens=1936] (2 slots)
+2026-11-20 19:17:18,541 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=2,tokens=968] (2 slots)
+2026-11-20 19:17:18,561 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=2,tokens=512] (2 slots)
+2026-11-20 19:17:18,582 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=1,tokens=968] (2 slots)
+2026-11-20 19:17:18,610 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=1,tokens=512] (2 slots)
+2026-11-20 19:17:18,632 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for LLM: action_chunk[bs=4,tokens=1936] (2 slots)
+2026-11-20 19:17:18,632 INFO [worker_0] mstar.engine.accelerator_graph_runner: AcceleratorGraphRunner[LLM]: warmup_and_capture done. shared_static_buffers: 1 entries, 30.25 MB resident (would have been 380.75 MB with per-capture clones — saved 350.50 MB). Total accelerator alloc delta during warmup: 0.01 MB.
+2026-11-20 19:17:18,632 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] LLM: capture took 558 MiB, 592 predicted
+2026-11-20 19:17:18,633 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] LLM piecewise: capture took 0 MiB, 0 predicted
+2026-11-20 19:17:18,869 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for action_expert: action_chunk[bs=4,tokens=200] (2 slots)
+2026-11-20 19:17:19,103 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for action_expert: action_chunk[bs=1,tokens=50] (2 slots)
+2026-11-20 19:17:19,333 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for action_expert: action_chunk[bs=2,tokens=100] (2 slots)
+2026-11-20 19:17:19,334 INFO [worker_0] mstar.engine.accelerator_graph_runner: AcceleratorGraphRunner[action_expert]: warmup_and_capture done. shared_static_buffers: 2 entries, 0.03 MB resident (would have been 0.22 MB with per-capture clones — saved 0.19 MB). Total accelerator alloc delta during warmup: 9.26 MB.
+2026-11-20 19:17:19,334 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] action_expert: capture took 30 MiB, 42 predicted
+2026-11-20 19:17:19,334 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] action_expert piecewise: capture took 0 MiB, 0 predicted
+2026-11-20 19:17:19,344 INFO [worker_0] mstar.engine.accelerator_graph_runner: Captured accelerator graph for vit_encoder: action_chunk[bs=1,tokens=0] (1 slots)
+2026-11-20 19:17:19,344 INFO [worker_0] mstar.engine.accelerator_graph_runner: AcceleratorGraphRunner[vit_encoder]: warmup_and_capture done. shared_static_buffers: 1 entries, 1.72 MB resident (would have been 3.45 MB with per-capture clones — saved 1.72 MB). Total accelerator alloc delta during warmup: 3.00 MB.
+2026-11-20 19:17:19,345 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] vit_encoder: capture took 42 MiB, 43 predicted
+2026-11-20 19:17:19,345 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0] vit_encoder piecewise: capture took 0 MiB, 0 predicted
+2026-11-20 19:17:19,345 INFO [worker_0] mstar.engine.engine: CapturePlan[cuda:0]: 32968 MiB free after capture, 408 for the largest eager step
+2026-11-20 19:17:19,348 INFO [worker_0] mstar.engine.engine: Engine: torch.compile applied to LLM
+2026-11-20 19:17:19,351 INFO [worker_0] mstar.engine.engine: Engine: torch.compile applied to action_expert
+2026-11-20 19:17:19,354 INFO [worker_0] mstar.engine.engine: Engine: torch.compile applied to vit_encoder
+2026-11-20 19:17:19,860 INFO [worker_0] mstar.worker.worker: Worker worker_0: gc.freeze() after warmup — 866615 objects moved to the permanent generation
+2026-11-20 19:17:19,861 INFO [worker_0] mstar.worker.step_executor: Worker worker_0: engine runs on dedicated GPU thread
+2026-11-20 19:17:19,861 INFO [worker_0] mstar.worker.step_executor: Worker worker_0: plan_executor enabled — speculative plan() pre-runs on a dedicated thread
+2026-11-20 19:17:19,870 INFO [conductor] mstar.conductor.conductor: Conductor: all 1 worker(s) ready
+2026-11-20 19:17:20,008 INFO [conductor] mstar.utils.gc_freeze: Conductor: gc.freeze() after setup, 438493 objects in the permanent generation
+2026-11-20 19:17:20,015 INFO [api_server] mstar.api_server.entrypoint: All workers ready
+2026-11-20 19:17:20,197 INFO [api_server] mstar.utils.gc_freeze: API server: gc.freeze() after setup, 437712 objects in the permanent generation
+2026-11-20 19:17:20,200 WARNING [api_server] mstar.api_server.entrypoint: --python-frontend: the uvicorn/FastAPI frontend is deprecated and will be removed; mstar-server is the default
+2026-11-20 19:17:20,200 WARNING [api_server] mstar.api_server.auth: No API key set (--api-key or MSTAR_API_KEY): any client that can reach 127.0.0.1:18101 can run requests. Set a key, or bind --host 127.0.0.1, unless a gateway in front of this server authenticates clients.
+2026-11-20 19:17:20,200 INFO [api_server] mstar.api_server.entrypoint: Starting mstar API server on 127.0.0.1:18101
+2026-11-20 19:17:20,220 INFO [api_server] uvicorn.error: Started server process [4119218]
+2026-11-20 19:17:20,220 INFO [api_server] uvicorn.error: Waiting for application startup.
+2026-11-20 19:17:20,221 INFO [api_server] uvicorn.error: Application startup complete.
+2026-11-20 19:17:20,221 INFO [api_server] uvicorn.error: Uvicorn running on http://127.0.0.1:18101 (Press CTRL+C to quit)
+2026-11-20 19:17:23,212 INFO [api_server] uvicorn.error: 127.0.0.1:47150 - "WebSocket /" [accepted]
+2026-11-20 19:17:23,213 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:24,477 INFO [api_server] uvicorn.error: 127.0.0.1:47154 - "WebSocket /" [accepted]
+2026-11-20 19:17:24,477 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:24,602 INFO [api_server] uvicorn.error: 127.0.0.1:47156 - "WebSocket /" [accepted]
+2026-11-20 19:17:24,602 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:24,728 INFO [api_server] uvicorn.error: 127.0.0.1:47158 - "WebSocket /" [accepted]
+2026-11-20 19:17:24,728 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:24,851 INFO [api_server] uvicorn.error: 127.0.0.1:47160 - "WebSocket /" [accepted]
+2026-11-20 19:17:24,851 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:24,975 INFO [api_server] uvicorn.error: 127.0.0.1:47162 - "WebSocket /" [accepted]
+2026-11-20 19:17:24,976 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,101 INFO [api_server] uvicorn.error: 127.0.0.1:47164 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,101 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,228 INFO [api_server] uvicorn.error: 127.0.0.1:47166 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,228 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,353 INFO [api_server] uvicorn.error: 127.0.0.1:47168 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,353 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,479 INFO [api_server] uvicorn.error: 127.0.0.1:47170 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,479 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,605 INFO [api_server] uvicorn.error: 127.0.0.1:47172 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,606 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,729 INFO [api_server] uvicorn.error: 127.0.0.1:47174 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,729 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,853 INFO [api_server] uvicorn.error: 127.0.0.1:47178 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,853 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:25,977 INFO [api_server] uvicorn.error: 127.0.0.1:47180 - "WebSocket /" [accepted]
+2026-11-20 19:17:25,977 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,102 INFO [api_server] uvicorn.error: 127.0.0.1:47182 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,102 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,227 INFO [api_server] uvicorn.error: 127.0.0.1:47184 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,227 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,350 INFO [api_server] uvicorn.error: 127.0.0.1:47186 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,350 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,475 INFO [api_server] uvicorn.error: 127.0.0.1:47188 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,475 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,598 INFO [api_server] uvicorn.error: 127.0.0.1:47190 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,598 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,723 INFO [api_server] uvicorn.error: 127.0.0.1:47192 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,723 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,846 INFO [api_server] uvicorn.error: 127.0.0.1:47194 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,846 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:26,967 INFO [api_server] uvicorn.error: 127.0.0.1:47196 - "WebSocket /" [accepted]
+2026-11-20 19:17:26,967 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,088 INFO [api_server] uvicorn.error: 127.0.0.1:47198 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,088 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,209 INFO [api_server] uvicorn.error: 127.0.0.1:47200 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,209 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,329 INFO [api_server] uvicorn.error: 127.0.0.1:47204 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,330 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,451 INFO [api_server] uvicorn.error: 127.0.0.1:47206 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,451 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,574 INFO [api_server] uvicorn.error: 127.0.0.1:47208 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,574 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,696 INFO [api_server] uvicorn.error: 127.0.0.1:47210 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,696 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,818 INFO [api_server] uvicorn.error: 127.0.0.1:47212 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,819 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:27,936 INFO [api_server] uvicorn.error: 127.0.0.1:47214 - "WebSocket /" [accepted]
+2026-11-20 19:17:27,936 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:28,059 INFO [api_server] uvicorn.error: 127.0.0.1:47216 - "WebSocket /" [accepted]
+2026-11-20 19:17:28,059 INFO [api_server] uvicorn.error: connection open
+2026-11-20 19:17:28,382 INFO [api_server] uvicorn.error: Shutting down
+2026-11-20 19:17:28,482 INFO [api_server] uvicorn.error: Waiting for application shutdown.
+2026-11-20 19:17:28,483 INFO [api_server] uvicorn.error: Application shutdown complete.
+2026-11-20 19:17:28,484 INFO [api_server] uvicorn.error: Finished server process [4119218]
+/usr/lib/python3.12/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 5 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

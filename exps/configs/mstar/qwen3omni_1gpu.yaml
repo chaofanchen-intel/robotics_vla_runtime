@@ -1,0 +1,10 @@
+# Single-GPU research override.
+# This is intentionally outside external/mstar so the pinned release remains unchanged.
+model: "qwen3_omni"
+max_seq_len: 8192
+node_groups:
+  - node_names: [audio_encoder, vision_encoder, Code2Wav]
+    ranks: [0]
+
+  - node_names: [Thinker, Talker]
+    ranks: [0]

@@ -1,0 +1,25 @@
+{
+    "materialize_dtype": "bf16",
+    "enable_autocast": false,
+    "default_num_inference_steps": 10,
+    "action_horizon": 50,
+    "n_action_steps": 50,
+    "action_dim": 32,
+    "output_action_dim": 32,
+    "state_dim": 32,
+    "max_token_len": 200,
+    "image_size": [
+        224,
+        224
+    ],
+    "image_keys": [
+        "base_0_rgb",
+        "left_wrist_0_rgb",
+        "right_wrist_0_rgb"
+    ],
+    "max_cameras": 3,
+    "tokenizer_name": "models/cache/models--google--paligemma-3b-pt-224/snapshots/35e4f46485b4d07967e7e9935bc3786aad50687c",
+    "enable_global_prefix_cache": false,
+    "enable_prefix_cuda_graph": true,
+    "enable_action_cuda_graph": false
+}

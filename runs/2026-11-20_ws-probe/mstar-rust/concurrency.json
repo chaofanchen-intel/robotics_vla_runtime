@@ -1,0 +1,60 @@
+{
+  "results": [
+    {
+      "connections": 1,
+      "requests": 40,
+      "wall_s": 2.6640060329809785,
+      "throughput_rps": 15.014981011601037,
+      "latency_ms": {
+        "n": 40,
+        "p50": 66.16142099999999,
+        "p95": 68.032973,
+        "p99": 68.463766,
+        "min": 61.528823,
+        "max": 68.463766,
+        "mean": 65.658180775
+      }
+    },
+    {
+      "connections": 2,
+      "requests": 80,
+      "wall_s": 4.67584495106712,
+      "throughput_rps": 17.1092071779973,
+      "latency_ms": {
+        "n": 80,
+        "p50": 116.8076815,
+        "p95": 118.141542,
+        "p99": 118.924585,
+        "min": 69.574542,
+        "max": 119.478404,
+        "mean": 115.8353083625
+      }
+    },
+    {
+      "connections": 4,
+      "requests": 160,
+      "wall_s": 8.72506309300661,
+      "throughput_rps": 18.33797627529417,
+      "latency_ms": {
+        "n": 160,
+        "p50": 220.8781045,
+        "p95": 267.252448,
+        "p99": 268.118733,
+        "min": 63.261929,
+        "max": 274.59689,
+        "mean": 212.49389985
+      }
+    }
+  ],
+  "meta": {
+    "framework": "mstar-rust",
+    "mode": "concurrency",
+    "url": "ws://127.0.0.1:18104",
+    "steps": 10,
+    "seed": 42,
+    "fixture": "exps/inputs/PI05/fixture_46row/fixture.json",
+    "started_unix": 1795173246.2819166,
+    "wall_s": 16.537747859954834,
+    "websockets": "17.4"
+  }
+}
