@@ -21,6 +21,10 @@
 - 快照只含源码。依赖、模型权重和运行环境没有在这里安装或验证。
 - `mstar/rust/target`（构建缓存，约 197 MB）没有复制。`mstar_rust` 与 `mstar-server` 的编译产物在 `build/`，见 [build/README.md](../build/README.md)。
 
+## Level 2 调研的源码（`external/l2-research/`）
+
+2026-11-21 为 Level 2 调研下载的开源仓库与 HF 文件，也在本目录下（被 `.gitignore` 忽略）。每个子目录的提交号与许可证记录在 [agents_results/2026-11-21_level2-research-deep.md](../agents_results/2026-11-21_level2-research-deep.md) 的"范围与版本"表中。`arxiv/` 下是论文 PDF 与 `pdftotext` 抽取的文本。这些仓库仅供阅读，不属于运行的代码。
+
 ## 不在本目录的内容
 
 - 基准仓库的 campaign 检出（`external/`：`mstar` 9c6f1ad、`sglang`、`vjepa2`、`vllm` 等）未复制。`vllm-omni` 与 `sglang-omni` 的运行副本在 `pinned/`。

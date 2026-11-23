@@ -1,0 +1,61 @@
+\setpart{Qwen3-Omni · 三层路线}
+
+\begin{frame}[t]{三层路线：每层的边界与三个框架的入口}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.4cm} Y Y Y}
+\toprule
+\rowcolor{Mist}
+层 & 定义 & 入口（三框架） & 能回答什么 \\
+\midrule
+Level 1 外部运行时 & 不改框架。外部程序做多路接收、缓冲、时间对齐，再按窗口或会话提交 & 窗口式：M* \code{/generate}、vLLM-Omni 与 SGLang-Omni 的聊天接口。会话式：vLLM-Omni 视频会话，SGLang-Omni 会话入口；M* 对 Qwen3-Omni 不可用 & 数据管理与时间对齐的代价；每次理解的端到端延迟 \\
+Level 2 引擎内输入 & 改框架。运行中到达的音频、帧、文本并入正在进行的生成 & 三个框架都没有。需要调度与引擎层的新机制 & 并入的收益，以及新输入对已有 KV 与位置编码的影响 \\
+Level 3 端到端交互 & 改框架与协议。输入与输出并发，支持打断、流式音频输出 & vLLM-Omni 双工端点（Qwen3-Omni 插件，轮次模型）；SGLang-Omni 会话（轮次式打断）；M* 无 & 打断延迟；输出音频的连续性；实时因子 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{Level 1 能用现有接口测；Level 2 是三个框架都要改的部分；Level 3 在 vLLM-Omni 与 SGLang-Omni 上已有轮次式的版本。}
+\par\memo{层次定义与 Pi0.5 的 Level 1 / Level 2 保持一致：Level 1 不改框架，Level 2 改引擎。}
+\end{frame}
+
+\begin{frame}[t]{Level 1 的两条实验路线（Qwen3-Omni）}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.3cm} Y Y}
+\toprule
+\rowcolor{Mist}
+ & 路线 A：窗口式（每秒提交） & 路线 B：会话式（持续送入） \\
+\midrule
+输入 & 外部缓冲视频 30 帧/秒、音频 20 毫秒一块、文本事件；每 1 秒取一个媒体时间窗口 & 持续送入帧与音频块；查询或轮次边界时提交理解 \\
+提交 & 每秒一个完整请求，三个框架都可以 & vLLM-Omni 用 \code{video.query}；SGLang-Omni 用 VAD 切轮次；M* 不可用 \\
+输出 & 每个窗口的文本与音频增量 & 同左；另外记录打断与抢占的情况 \\
+用来验证 & 数据管理、时间对齐、引擎的单次延迟 & 会话状态、抢占与打断的行为、增量 prefill 是否生效 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{路线 A 三个框架都能跑，是对照的基础；路线 B 在 M* 上需要模型侧的改动，因此 M* 只能先做路线 A。}
+\par\memo{场景与时间数值为本汇报设定，不是测量。路线 B 的 vLLM-Omni 行为依据见框架部分第 2 页（增量 prefill 只在文本输出时生效）。}
+\end{frame}
+
+\begin{frame}[t]{评价指标：两域共用，增加多模态项}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3.0cm} Y}
+\toprule
+\rowcolor{Mist}
+指标 & 定义与测量方式 \\
+\midrule
+输入接收延迟 & 媒体产生到框架接收的时间（回放时带采集时间戳） \\
+输入排队时间 & 输入在外部缓冲与框架内等待的时间 \\
+模态偏差 & 视频、音频、文本的媒体时间偏差（同一窗口内） \\
+输入新鲜度 & 模型实际使用的输入距采集的时间 \\
+增量 prefill 耗时 & 新输入进入上下文的耗时（路线 B） \\
+输入到首个输出 & 最后一个相关输入到第一个输出 token 或音频块 \\
+打断延迟 & 用户开口到当前输出停止的时间（Level 3） \\
+音频块延迟与实时因子 & 音频输出的分块间隔；每秒音频的处理时间 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{"输入新鲜度"和"增量 prefill 耗时"是区分外部运行时管理与引擎内输入的指标：前者由外部缓冲决定，后者只有引擎内并入时才有意义。}
+\par\memo{指标定义是本汇报的约定；骨架与 Pi0.5 相同，Qwen3-Omni 侧增加模态偏差、输入新鲜度等多模态项。M* 的输出测量与 Pi0.5 相同（EMIT 时间戳）。}
+\end{frame}

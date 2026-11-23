@@ -1,0 +1,24 @@
+\setpart{Pi0.5 · Level 2 的缺口与路线}
+
+\begin{frame}[t]{Pi0.5 的 Level 2：七个条目，各自的现状与改动位置}
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\setlength{\tabcolsep}{2.5pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{1.0cm} p{2.2cm} Y p{1.0cm} p{2.0cm}}
+\toprule
+\rowcolor{Mist}
+项 & 目标 & 现状（依据） & 阶段 & 改动位置 \\
+\midrule
+E1 & 推理中接收新观测，不排队 & 三框架的 OpenPI 端点都是一连接一推理；实测排队时间 = 剩余推理（第 6 部分） & 待做 & 服务层 \\
+E2 & 中止在途推理 & 四家断开后仍算完（实测）；vLLM-Omni 的取消路径未用于 Pi0.5 & 待做 & 引擎：去噪步之间加取消点 \\
+E3 & guided RTC & 参考实现三个（Kinetix、rtc-pi05、LeRobot），数学一致；框架内没有 & 调研完成 & 引擎：去噪步可求导（CUDA 图需重捕获） \\
+E3$'$ & 训练期 RTC & Kinetix、openpi\_rlt、EagleVLA 的做法；需要重新训练 & 调研完成 & 模型 \\
+E4 & 按路增量输入 & Pi0.5 全注意力，state 写在 prompt，变化使前缀失效；收益小 & 暂缓 & 模型 \\
+E5 & 按路编码器缓存 & 无开源参考；ViT 约占 E2E 的 8\%（插桩数据，上界） & 待测 & 引擎或模型 \\
+E6 & 动作块内部流式 & 无参考；OpenPI 也整块返回 & 调研 & 协议 \\
+E7 & 跨请求状态 & 不适用：三家不保留跨请求 KV & — & — \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{E1 与 E2 已有同协议实验证据，改动在服务层和引擎层。E3 有参考实现，但框架内没有。E4 与 E7 对机器人的收益有限。}
+\par\memo{来源：agents\_results/2026-11-21\_level2-research-deep.md（A--F 节）；设计文档 §4.2、§6、§7。论文数字为作者自报，未复现。}
+\end{frame}

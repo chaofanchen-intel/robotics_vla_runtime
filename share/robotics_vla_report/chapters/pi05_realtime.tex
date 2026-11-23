@@ -1,0 +1,140 @@
+\setpart{Pi0.5 · 实时方案}
+
+\begin{frame}[t]{控制循环与推理循环分开运行}
+\vspace{-.15cm}
+\begin{tikzpicture}[x=1cm,y=.8cm,
+  s/.style={box=Gold,font=\scriptsize,minimum width=2.0cm,minimum height=.62cm},
+  p/.style={box=Teal,font=\scriptsize,minimum height=.66cm},
+  ]
+  % 传感器
+  \node[s] (c) at (1.0,0) {相机 15 / 7.5 Hz};
+  \node[s] (st) at (3.25,0) {本体状态 100 Hz};
+  \node[s] (tk) at (5.5,0) {语言指令（事件）};
+  % 观测槽
+  \node[p,minimum width=7.6cm] (slot) at (3.25,-1.1) {最新观测槽：每路只保留最新一条，记录时间戳，读取时不等待};
+  \draw[flow] (c) -- (c|-slot.north);
+  \draw[flow] (st) -- (st|-slot.north);
+  \draw[flow] (tk) -- (tk|-slot.north);
+  % 第三行
+  \node[p,minimum width=2.1cm] (trg) at (1.2,-2.4) {触发器\\{\tiny 计数 / 阈值 / 周期}};
+  \node[p,minimum width=2.4cm,fill=Teal!14] (req) at (4.0,-2.4) {推理请求\\{\tiny 一次在途，带快照时刻}};
+  \node[p,minimum width=2.3cm,fill=Orange!14,draw=Orange] (fw) at (6.7,-2.4) {框架推理\\{\tiny M* / vLLM / SGLang}};
+  \node[p,minimum width=2.4cm] (aq) at (9.5,-2.4) {动作队列\\{\tiny 块 + 代数号，旧代数丢弃}};
+  \draw[flow] (slot.south) -- (req.north);
+  \draw[flow] (trg) -- (req);
+  \draw[flow] (req) -- (fw);
+  \draw[flow] (fw) -- (aq);
+  % 第四行：控制
+  \node[p,minimum width=2.4cm,fill=Gold!14,draw=Gold] (ct) at (9.5,-3.9) {控制时钟 15 Hz\\{\tiny 每 66.7 毫秒取一个动作}};
+  \node[p,minimum width=2.4cm] (rb) at (1.2,-3.9) {机器人\\{\tiny 欠载时保持最后设定点（假设）}};
+  \draw[flow] (aq) -- (ct);
+  \draw[flow] (ct) -- (rb);
+  \node[font=\tiny,text=Muted,anchor=west] at (3.0,-4.9) {推理慢只让动作变旧或欠载，不会让控制时钟停下};
+\end{tikzpicture}
+\par\takeaway{推理是异步的：控制时钟不等推理，推理也不等传感器全部到齐。两者只通过“最新观测槽”和“动作队列”交接。}
+\par\memo{来源：本项目 src/\allowbreak{}runtime/\allowbreak{}observation.py、scheduler.py、action\_\allowbreak{}manager.py、controller.py；参考做法：LeRobot 观测槽与 ActionQueue（remote\_\allowbreak{}inference/\allowbreak{}engine.py:521--528；policies/\allowbreak{}rtc/\allowbreak{}action\_\allowbreak{}queue.py）。}
+\end{frame}
+
+\begin{frame}[t]{动作块怎么衔接：对齐、朴素与欠载}
+\vspace{-.1cm}
+\begin{tikzpicture}[x=1cm,y=.62cm]
+  \def\X{1.75}
+  \def\S{4.9}
+  \def\dt{0.0667}
+  % 时间刻度
+  \foreach \tm in {0,0.5,1.0,1.5}{
+    \draw[Line,line width=.4pt] ({\X+\tm*\S},-3.7) -- ({\X+\tm*\S},.65);
+    \node[font=\tiny,text=Muted] at ({\X+\tm*\S},-3.95) {\tm\,s};
+  }
+  % 快照与到达
+  \draw[Red,densely dashed,line width=.7pt] ({\X+.45*\S},.65) -- ({\X+.45*\S},-3.7);
+  \node[font=\tiny,text=Red,anchor=south] at ({\X+.45*\S},.66) {快照 0.45 s};
+  \draw[Blue,densely dashed,line width=.7pt] ({\X+.6*\S},.65) -- ({\X+.6*\S},-3.7);
+  \node[font=\tiny,text=Blue,anchor=south west] at ({\X+.6*\S+.02},.66) {回复到达 0.6 s};
+  % 车道 a：对齐执行
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,0) {对齐执行};
+  \node[anchor=west,font=\tiny,text=Muted,align=left] at (0,-.42) {LeRobot aligned\\按当前时刻取动作};
+  \foreach \i in {0,...,8}{\fill[Teal!60] ({\X+\i*\dt*\S},-.12) rectangle ({\X+(\i+1)*\dt*\S-.02},-.5);}
+  \foreach \i in {9,...,14}{\fill[Teal!12] ({\X+\i*\dt*\S},-.12) rectangle ({\X+(\i+1)*\dt*\S-.02},-.5);}
+  \foreach \i in {0,...,2}{\fill[Muted!30] ({\X+.45*\S+\i*\dt*\S},-.85) rectangle ({\X+.45*\S+(\i+1)*\dt*\S-.02},-1.23);}
+  \foreach \i in {3,...,14}{\fill[Orange!70] ({\X+.45*\S+\i*\dt*\S},-.85) rectangle ({\X+.45*\S+(\i+1)*\dt*\S-.02},-1.23);}
+  \node[anchor=west,font=\tiny,text=Muted] at ({\X+1.0*\S+.1},-1.04) {灰：跳过的动作};
+  % 车道 b：朴素执行
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-1.9) {朴素执行};
+  \node[anchor=west,font=\tiny,text=Muted,align=left] at (0,-2.32) {OpenPI 参考客户端\\从动作 0 开始};
+  \foreach \i in {0,...,14}{\fill[Teal!60] ({\X+.6*\S+\i*\dt*\S},-1.95) rectangle ({\X+.6*\S+(\i+1)*\dt*\S-.02},-2.33);}
+  \node[anchor=west,font=\tiny,text=Ink] at ({\X+.6*\S+.5},-2.6) {每个动作比计划晚一个回复延迟（150 毫秒）};
+  % 车道 c：回复晚到
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-3.2) {回复晚到};
+  \node[anchor=west,font=\tiny,text=Muted,align=left] at (0,-3.62) {欠载};
+  \foreach \i in {0,...,14}{\fill[Teal!60] ({\X+\i*\dt*\S},-3.2) rectangle ({\X+(\i+1)*\dt*\S-.02},-3.58);}
+  \fill[Red!70] ({\X+1.0*\S},-3.2) rectangle ({\X+1.3*\S},-3.58);
+  \node[font=\tiny,text=Red] at ({\X+1.15*\S},-3.36) {欠载};
+  \foreach \i in {13,14}{\fill[Orange!70] ({\X+1.3*\S+(\i-13)*\dt*\S},-3.2) rectangle ({\X+1.3*\S+(\i-12)*\dt*\S-.02},-3.58);}
+\end{tikzpicture}
+\par\takeaway{对齐执行避免了朴素执行的固定延迟；但回复一晚，剩下的动作很少，很快又欠载。示意图的时间为说明用，不是测量值。}
+\par\memo{来源：设计文档 §2.7（朴素与对齐执行的预定时刻滞后：M* +68 毫秒，SGLang 分桶 +135 毫秒，vLLM-Omni +337 毫秒，对齐下约 0）；action\_\allowbreak{}manager.py 的 locate() 与 execute()。}
+\end{frame}
+
+\begin{frame}[t]{主流的几种做法：各在哪个开源项目里}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.25cm} p{2.25cm} Y Y Y}
+\toprule
+\rowcolor{Mist}
+做法 & 项目（版本） & 何时推理 & 动作怎么衔接 & 中止与 RTC \\
+\midrule
+计数触发 & OpenPI 参考客户端（215abfb） & DROID 执行满 8 步才请求；LIBERO 每 5 步请求；块用完也请求 & 从动作 0 开始，先进先出；无时间戳，无年龄检查 & 无中止；无 RTC \\
+回放阈值 + 动作队列 & LeRobot v0.7.0（410c095） & 剩余动作覆盖的时间 $\le$ 0.5 秒（或往返时间加一步） & 观测槽只留最新一条；带代数号的队列，对齐合并 & 只在客户端丢弃；pi05 默认开启 guided RTC \\
+异步客户端 + RTC & openpi05-bsp（dfb7444）；rtc-pi05（HF，MIT） & 异步调度；RTC 状态机与延迟缓冲 & 客户端保存已发出的动作作为前缀 & 服务端仍串行，无取消；openpi05-bsp 的 README 尚无数字 \\
+训练期 RTC & Kinetix（9296f31，MIT）；openpi\_rlt；EagleVLA（论文） & 模型层面的做法，与触发方式无关 & 训练时采样延迟，推理时硬替换前缀 & 需要重新训练；EagleVLA 的数字为自报 \\
+多传感器对齐 & ROS 2 message\_filters（8.0.5） & 没有周期触发，也没有快照 & 近似或精确时间匹配 & 不涉及推理 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{没有一个开源项目同时具备：每路各自的时间戳、服务端在推理中接收新观测、真正中止 GPU 推理，并带 RTC。RTC 都在客户端或模型里实现。}
+\par\memo{来源：agents\_\allowbreak{}results/2026-11-20\_\allowbreak{}openpi-remote-pi05.md；2026-11-20\_\allowbreak{}lerobot-async-rtc.md；2026-11-21\_\allowbreak{}level2-research-deep.md（A--D 节）。论文数字为作者自报，未复现。}
+\end{frame}
+
+\begin{frame}[t]{RTC：让新动作接上已经执行的动作}
+\vspace{-.1cm}
+\begin{minipage}[t]{5.6cm}
+\minipagetop
+\begin{tikzpicture}[x=1cm,y=.55cm]
+  \def\X{0.2}
+  \def\dd{.7}
+  \draw[Line,line width=.4pt] (\X,-3.4) -- (\X+5.1,-3.4);
+  \node[font=\tiny,text=Muted] at (\X+5.1,-3.7) {动作序号};
+  % 旧块：已执行（前 d 步）与未执行
+  \foreach \i in {0,...,5}{\fill[Muted!45] ({\X+\i*.45},0) rectangle ({\X+\i*.45+.36},.5);}
+  \node[font=\tiny,text=Muted,anchor=south] at ({\X+1.1},.55) {旧块已执行的部分};
+  % 新块
+  \foreach \i in {0,...,9}{\fill[Orange!65] ({\X+\i*.45+1.5},-1.2) rectangle ({\X+\i*.45+1.86},-.7);}
+  \node[font=\tiny,text=Orange,anchor=north] at ({\X+3.0},-1.25) {新块（来自新的观测）};
+  % 跳变
+  \draw[Red,line width=.9pt,<->] ({\X+2.25},.5) -- ({\X+2.25},-.7);
+  \node[font=\tiny,text=Red,anchor=west] at ({\X+2.32},-.1) {无 RTC：边界跳变};
+  % 冻结的前缀（RTC）
+  \fill[Teal!25] ({\X+1.5},-2.0) rectangle ({\X+2.7},-2.5);
+  \node[font=\tiny,text=Teal,anchor=west] at ({\X+2.75},-2.25) {前缀 d 步：训练期冻结，或推理期引导};
+  \node[font=\tiny,text=Muted,anchor=west] at (\X,-2.85) {d = 推理耗时 ÷ 控制周期，向上取整（LeRobot 按实测往返时间计算）};
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}[t]{5.0cm}
+\minipagetop
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabularx}{\linewidth}{>{\bfseries}p{1.7cm} Y}
+\toprule
+\rowcolor{Mist}
+方式 & 做法与代价 \\
+\midrule
+无 RTC & 新块直接替换旧块；边界可能跳变 \\
+推理期 guided & 前缀误差通过去噪步的 VJP 修正速度场，权重 $\min\!\big(\tfrac{1-t}{t}\cdot\tfrac{t^2+(1-t)^2}{(1-t)^2},\beta\big)$；不需要重训，但去噪步必须可求导 \\
+训练期 trained & 训练时随机采样延迟，前缀标为干净动作；推理时硬替换；需要重训 \\
+\bottomrule
+\end{tabularx}
+\end{minipage}
+\par\takeaway{guided 不需要重训，但我们的 M* 与 SGLang core 去噪步都在 CUDA 图里，求导需要重新捕获图；这是引擎级改动。}
+\par\memo{来源：Kinetix src/\allowbreak{}model.py:236--258；rtc-pi05 rtc/\allowbreak{}masking.py:122--139；LeRobot configuration\_\allowbreak{}rtc.py:41--52，modeling\_\allowbreak{}rtc.py:46--48；设计文档 §0 第 7 条。}
+\end{frame}

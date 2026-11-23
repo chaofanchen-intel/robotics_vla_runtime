@@ -1,0 +1,22 @@
+\setpart{框架能力 · SGLang-Omni}
+
+\begin{frame}[t]{SGLang-Omni：Qwen3-Omni 的会话入口，按轮次工作}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.2cm} Y p{3.7cm}}
+\toprule
+\rowcolor{Mist}
+方面 & 实际行为（依据） & 与目标的关系 \\
+\midrule
+入口 & \code{/v1/realtime}，需 \code{--enable-realtime}；Qwen3-Omni 会话流水线（\code{cli/serve.py:460--470}，\code{config.py:613--618}） & 可直接作为会话测试入口 \\
+输入 & PCM16 音频、摄像头帧、文本；VAD 与 dialog 节点切轮次（\code{session\_node.py:20--27}） & 与 vLLM-Omni 视频会话形式接近 \\
+输出 & PCM\_F32 音频 24 kHz；文本与音频的 SSE 流式（\code{openai\_api.py:1048--1060}） & 输出流式已有 \\
+打断 & 回答中检测到语音开始 $\to$ INTERRUPT（\code{session\_input.py:262--263}）；未完的话语重问，或截断到客户端已听到的音频（\code{:186--188}）；\code{interaction="turn\_based"}（\code{session\_bridge.py:110}） & 有，但仍按轮次 \\
+取消 & 断开 $\to$ \code{coordinator.abort}（\code{coordinator.py:534--540}）$\to$ 引擎 abort（\code{native\_chat\_scheduler.py:482}）；GPU 是否立即停止未核对 & 未核对 \\
+并入新输入 & 未见：新输入在话语结束后才成为新一轮 & 未见 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{SGLang-Omni 与 vLLM-Omni 在输入形式和打断上接近，都按轮次工作；推理中并入新输入两者都未见。}
+\par\memo{来源：pinned/sglang-omni（e8c635e）；latest 只抽查了文件存在。本仓库未测会话。}
+\end{frame}

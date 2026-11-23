@@ -23,6 +23,7 @@
 | `configs/mstar_pi05_openpi.yaml` | M\* 最新版的 Pi0.5 OpenPI WebSocket 配置（`openpi:` 块） |
 | `runs/` | 实验输出：JSON、服务日志、GPU 快照（说明见 [runs/README.md](runs/README.md)） |
 | `agents_results/` | 本目录的研究子代理记录（说明见 [agents_results/README.md](agents_results/README.md)） |
+| `share/robotics_vla_report/` | 汇报稿（16:9 幻灯片，43 页）：框架能力按六项判据逐页比较（M\*、vLLM-Omni、SGLang-Omni）；Pi0.5 的输入输出、实时方案、测量结果、Level 2 缺口；Qwen3-Omni 的输入输出与三层路线；计划与待确定事项（说明见 [share/robotics_vla_report/README.md](share/robotics_vla_report/README.md)） |
 | `external/` | 上游框架最新源码快照，只读；M\* 实验运行的就是其中的 `mstar`（说明见 [external/README.md](external/README.md)） |
 | `pinned/` | 实验运行的 vLLM-Omni 与 SGLang-Omni 源码，固定到测量时的版本，含本地 overlay（说明见 [pinned/README.md](pinned/README.md)） |
 | `build/` | M\* Rust 组件的编译产物：`mstar_rust` 的 wheel 与解包目录、`mstar-server` 二进制（说明见 [build/README.md](build/README.md)） |

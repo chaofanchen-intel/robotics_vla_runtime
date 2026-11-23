@@ -1,0 +1,36 @@
+\setpart{附录}
+
+\begin{frame}[t]{版本、来源与口径}
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.3cm} Y Y}
+\toprule
+\rowcolor{Mist}
+对象 & 版本 & 用在哪里 \\
+\midrule
+M* & 2c8ffde8（最新版，\code{external/mstar}）；活动报告用的 9c6f1ad 没有 OpenPI 端点 & Pi0.5 的 Level 1 与探测（Rust 前端）；Qwen3-Omni 的代码阅读 \\
+vLLM-Omni & 运行 5917730 + overlay（\code{pinned/vllm-omni}，v0.32.0）；最新 2e3ad0a4 只读 & Pi0.5 的 Level 1 与探测；Qwen3-Omni 的代码阅读。latest 的增量 prefill 默认值不同 \\
+SGLang-Omni & 运行的检出 e8c635e（\code{pinned/sglang-omni}）；最新 92a4c132 只抽查 & 代码阅读（Qwen3-Omni 会话）；本仓库未运行 \\
+SGLang core & pip sglang 0.5.22（\code{envs/sglang-omni}） & Pi0.5 的 Level 1 与探测 \\
+LeRobot / OpenPI & v0.7.0（410c095）/ 215abfb；只读 & 参考：观测槽、队列、RTC；协议 \\
+Kinetix 等 RTC 参考 & openpi05-bsp dfb7444；rtc-pi05（HF，MIT）；Kinetix 9296f31（MIT） & Level 2 参考 \\
+基准仓库报告 & report v2（Qwen3-Omni 的单请求数据） & 第三部分的现有数据 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{版本不同的数字不能混用。本汇报的 M* 数字来自 2c8ffde8；Qwen3-Omni 的单请求数据来自基准仓库，不是本仓库测的。}
+\par\memo{同一台 RTX 5880（GPU 0），主机有其他用户的作业。端到端指客户端发出到收到回复。输入时间表、延迟与抖动是模拟参数，控制器是模拟的 15 Hz。}
+\end{frame}
+
+\begin{frame}[t]{局限与未验证的部分}
+\scriptsize
+\begin{itemize}\setlength\itemsep{1pt}
+\item \tb{没有真机，Pi0.5 与 Qwen3-Omni 的输入都不是采集数据。} Pi0.5 的动作数值没有语义，只测时间。
+\item \tb{框架代码阅读为主。} 取消到 GPU 的时机（vLLM-Omni、SGLang-Omni）是推断，未在 GPU 上测。
+\item \tb{M* 只测了默认 Rust 前端；vLLM-Omni 的长尾中有多少来自主机负载，没有分开。}
+\item \tb{文档与代码不一致（vLLM-Omni）：} 文档说 \code{duplex=1} 在非双工部署时回退到轮次式，代码返回错误并以 1008 关闭；文档的协议表漏列了 \code{video.frame.ack}、\code{video.frames.consumed}。
+\item \tb{未核对：} SGLang-Omni 的流式与会话的 latest 版本；SGLang 能否在 GPU 上立即停止批次；vLLM-Omni 的音频增量 prefill。
+\item \tb{论文数字为作者自报：} A2C2、EagleVLA 的数字未复现。
+\end{itemize}
+\par\takeaway{要把结论用到真实的音视频与真机上，需要采集数据和 P3--P5 的测量。}
+\end{frame}

@@ -1,0 +1,43 @@
+\setpart{框架能力 · 判据与目标}
+
+\begin{frame}[t]{先定义六种能力，再看框架}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.6cm} Y Y}
+\toprule
+\rowcolor{Mist}
+能力 & 指什么 & 框架要具备什么（判据） \\
+\midrule
+输出流式 & 一次请求进行中，中间结果已经返回（文本 token、音频块、动作块） & 有逐步回传的通道，不必等整段结束 \\
+输入流式（运行中追加） & 请求还在运行时，客户端继续送入音频、视频、文本或观测 & 有接收追加输入的协议，并且模型声明了可接收的输入流 \\
+推理中并入新输入 & 新输入改变正在进行的计算（上下文、KV、后续输出） & 调度与引擎能把新 token 或帧接到正在进行的序列上 \\
+打断（barge-in） & 输出过程中，新输入使当前输出停止或转向 & 有输入事件能触发取消、截断或重新提问 \\
+中止在途计算 & 取消后，GPU 上的计算停止 & 取消能进入引擎，并在步与步之间生效 \\
+增量处理 & 只计算新增的部分，已有部分复用 & 有前缀复用或增量 prefill \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{输出流式两个领域都已经有，输入流式和"推理中并入新输入"三个框架都还不具备。下面的框架页按这六项判断。}
+\par\memo{定义是本汇报的约定，依据是两个领域的目标场景（下一页）。}
+\end{frame}
+
+\begin{frame}[t]{两个领域要的能力不同}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.6cm} Y Y}
+\toprule
+\rowcolor{Mist}
+能力 & Pi0.5（机器人 VLA） & Qwen3-Omni（全模态对话） \\
+\midrule
+多路输入独立到达 & 需要：相机 15 / 15 / 7.5 Hz，状态 100 Hz，指令为事件 & 需要：视频 30 帧/秒，音频 20 毫秒一块，文本为事件 \\
+窗口式提交（Level 1） & 已完成：外部运行时做快照与触发 & 待做：每次提交一个时间窗口 \\
+推理中并入新输入 & 收益有限：Pi0.5 是全注意力，state 写在 prompt 里，任何变化都使前缀失效 & 核心需求：用户说话、画面变化时，正在进行的理解要能吸收 \\
+输出流式 & 动作块整块返回；动作分块返回是可选项 & 文本 token 与音频块逐步返回 \\
+打断 / 替换 & 新观测到达就替换动作块（重规划） & 用户开口就打断正在播放的回答 \\
+中止在途计算 & 需要：限定延迟，替换时停止计算 & 需要：打断时停止生成，不再占用 GPU \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{机器人主要需要"替换"和"限定延迟"，对话主要需要"并入"和"打断"。两个领域对框架的要求不同，不能用同一套评价。}
+\par\memo{Pi0.5 的前缀与 state 依据：openpi pi0.py（全部前缀双向）、tokenizer.py:24--28（state 写入文本）；设计文档 §4.2。}
+\end{frame}

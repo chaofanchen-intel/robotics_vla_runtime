@@ -1,0 +1,69 @@
+% 幻灯片版式（两份汇报共用）：16:9 Beamer，白底，左对齐标题，底部固定“要点条”，右下页码。
+% 调用前需要：\documentclass[aspectratio=169,10pt]{beamer}，然后 \input{common}。
+
+\setbeamercolor{normal text}{fg=Ink,bg=white}
+\setbeamercolor{structure}{fg=Teal}
+\setbeamercolor{alerted text}{fg=Red}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\raisebox{.15ex}{\color{Teal}\scriptsize$\blacksquare$}}
+\setbeamertemplate{itemize subitem}{\raisebox{.15ex}{\color{Teal}\tiny$\blacksquare$}}
+\setbeamertemplate{enumerate item}{\color{Teal}\bfseries\insertenumlabel.}
+\setbeamersize{text margin left=1.0cm,text margin right=1.0cm}
+\setbeamerfont{itemize/enumerate body}{size=\small}
+\setbeamerfont{itemize/enumerate subbody}{size=\footnotesize}
+\setlength{\leftmargini}{1.1em}
+\setlength{\parskip}{0pt}
+\setlength{\itemsep}{2pt}
+\renewcommand{\arraystretch}{1.18}
+\setlength{\tabcolsep}{4pt}
+
+\newcommand{\deckpart}{}
+% PDF 书签：每个 \setpart 是一级书签，每页标题是二级书签（打开 PDF 时可从侧边栏跳转）。
+\hypersetup{bookmarks=true,bookmarksopen=true,bookmarksopenlevel=1,bookmarksnumbered=false,unicode=true}
+\newcommand{\setpart}[1]{\renewcommand{\deckpart}{#1}\pdfbookmark[1]{#1}{part.\thepage.\the\numexpr\value{page}\relax}}
+\newcommand{\framebookmark}[1]{\pdfbookmark[2]{\thepage\ \ #1}{frame.\thepage}}
+
+\setbeamertemplate{frametitle}{%
+  \vspace{-.05cm}%
+  \framebookmark{\insertframetitle}%
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[Cyan] ([xshift=1.0cm,yshift=-.43cm]current page.north west) rectangle ++(.13cm,-.13cm);
+    \node[anchor=west,inner sep=0,font=\fontsize{7}{8}\selectfont\bfseries,text=Muted] at ([xshift=1.25cm,yshift=-.495cm]current page.north west) {\deckpart};
+    \node[anchor=north west,inner sep=0,font=\fontsize{14.5}{17}\selectfont\bfseries,text=Ink,text width=14.4cm] at ([xshift=1.0cm,yshift=-.7cm]current page.north west) {\insertframetitle};
+    \fill[Cyan] ([xshift=1.0cm,yshift=-1.42cm]current page.north west) rectangle ++(1.0cm,-.045cm);
+    \fill[Orange] ([xshift=2.0cm,yshift=-1.42cm]current page.north west) rectangle ++(1.0cm,-.045cm);
+    \fill[Teal] ([xshift=3.0cm,yshift=-1.42cm]current page.north west) rectangle ++(1.0cm,-.045cm);
+  \end{tikzpicture}%
+  \vspace{.85cm}%
+}
+% 页脚：只保留页码，右下对齐。
+\setbeamertemplate{footline}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=east,inner sep=0,font=\fontsize{7.5}{9}\selectfont\bfseries,text=Muted] at ([xshift=-1.0cm,yshift=.36cm]current page.south east) {\insertframenumber};
+  \end{tikzpicture}%
+}
+
+% 页尾要点条：没有标签、不是每页都放；位置贴近页脚，内容区因此更大。
+\newcommand{\takeaway}[1]{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=south west,inner xsep=.38cm,inner ysep=.1cm,minimum height=.74cm,minimum width=14cm,text width=13.3cm,align=left,fill=Mist,font=\fontsize{8.6}{11}\selectfont] (sw) at ([xshift=1.0cm,yshift=.62cm]current page.south west) {#1};
+    \fill[Teal] (sw.south west) rectangle ([xshift=.09cm]sw.north west);
+  \end{tikzpicture}}
+
+% 封面：白底、大标题、左下蓝色标签、细横线。调用时传入标题、副标题、标签行。
+\newcommand{\deckcover}[4]{%
+  \begin{frame}[plain,noframenumbering]
+    \pdfbookmark[1]{封面}{title.page}%
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[Cyan] ([xshift=1.4cm,yshift=-1.35cm]current page.north west) rectangle ++(.2cm,-.2cm);
+      \fill[Teal] ([xshift=1.4cm,yshift=-1.55cm]current page.north west) rectangle ++(2.4cm,-.16cm);
+      \node[anchor=west,inner sep=0,text width=13.6cm,align=left] at ([xshift=1.4cm,yshift=.35cm]current page.west) {%
+        {\fontsize{23}{30}\selectfont\bfseries\textcolor{Navy}{#1}}\\[.5cm]
+        {\fontsize{12}{16}\selectfont\textcolor{Teal}{\bfseries #2}}\\[.1cm]
+        {\fontsize{10.5}{14}\selectfont\textcolor{Muted}{#3}}};
+      \draw[Line,line width=.5pt] ([yshift=1.05cm]current page.south west) -- ([yshift=1.05cm]current page.south east);
+      \fill[Teal] ([yshift=.0cm]current page.south west) rectangle ++(2.6cm,1.05cm);
+      \node[anchor=center,font=\footnotesize\bfseries,text=white] at ([xshift=1.3cm,yshift=.52cm]current page.south west) {2026-11-23};
+      \node[anchor=west,inner sep=0,font=\fontsize{7}{9}\selectfont,text=Muted,align=left] at ([xshift=3.2cm,yshift=.52cm]current page.south west) {#4};
+    \end{tikzpicture}
+  \end{frame}}

@@ -1,0 +1,71 @@
+\setpart{框架能力 · M*}
+
+\begin{frame}[t]{M*：运行中的输入只对声明了输入流的模型开放}
+\vspace{-.15cm}
+\begin{tikzpicture}[x=1cm,y=1cm,
+  s/.style={box=Teal,font=\tiny,align=center,minimum width=1.55cm,minimum height=.62cm},
+  ]
+  \node[s] (c) at (.8,0) {客户端\\WS 追加帧};
+  \node[s] (e) at (2.75,0) {入口\\检查开放与大小};
+  \node[s] (d) at (4.7,0) {预处理 worker\\process\_stream\_chunk};
+  \node[s] (k) at (6.65,0) {Conductor\\按声明路由};
+  \node[s,fill=Gold!14,draw=Gold] (b) at (8.6,0) {消费分区\\StreamBuffer + 分块策略};
+  \node[s,fill=Gold!14,draw=Gold] (n) at (10.4,0) {节点输入};
+  \draw[flow] (c)--(e); \draw[flow] (e)--(d); \draw[flow] (d)--(k); \draw[flow] (k)--(b); \draw[flow] (b)--(n);
+\end{tikzpicture}\\[.05cm]
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{4.3cm} Y}
+\toprule
+\rowcolor{Mist}
+情况 & 依据 \\
+\midrule
+已声明输入流：nemotron\_duplex（16 kHz 音频）、qwen3\_tts（文本）、waypoint（动作） & \code{nemotron\_duplex\_model.py:499--503}；\code{qwen3\_tts\_model.py:725--729}；\code{waypoint\_model.py:277--280} \\
+\textcolor{Red}{Qwen3-Omni：未声明输入流，追加被拒绝，请求只能是一次性的} & \code{qwen3\_omni/} 下无 \code{from\_partition=CLIENT}；\code{entrypoint.py:2744--2748}、\code{2765} \\
+OpenPI 端点（机器人）：没有追加路径；推理期间不读套接字 & \code{openpi.py} 无 append；\code{rust/server/src/ws/openpi.rs:566, 588} \\
+Rust 的 \code{/generate} 路径有追加 & \code{rust/server/src/ws/generate.rs:813--832} \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{M* 的输入流是模型声明的能力，不是框架通用能力。要让 Qwen3-Omni 接收运行中的音频和视频，要在模型侧声明输入流，并实现处理函数。}
+\par\memo{来源：external/mstar（2c8ffde8）。接收、路由和缓冲的路径见上图；StreamBuffer 在 \code{mstar/streaming/stream\_buffer.py:71}，数据路由在 \code{conductor.py:2318--2323}。}
+\end{frame}
+
+\begin{frame}[t]{M*：输出可以逐步返回；取消只作用于排队中的请求}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.2cm} Y}
+\toprule
+\rowcolor{Mist}
+项目 & 实际行为（依据） \\
+\midrule
+输出流式 & 每个文本 token 或音频块作为一条 NDJSON 返回（\code{EMIT\_TO\_CLIENT}）；Qwen3-Omni 的文本在 \code{qwen3\_omni\_model.py:535--538}，音频块在 \code{738--740}，输出 24 kHz（\code{807--809}） \\
+断开即取消 & 客户端断开 $\to$ \code{abort\_submission}（\code{entrypoint.py:2785}）$\to$ 预处理 abort（\code{data\_worker.py:423, 433}）$\to$ \code{conductor.py:1826} \\
+\quad 排队中的请求 & 直接删除（\code{conductor.py:1861} 排空参与者后移除） \\
+\quad 已在 GPU 上启动的一步 & 照常跑完，结果丢弃（\code{request\_lifecycle.py:206--213}；\code{step\_pipeline.py:1001--1005}） \\
+打断（barge-in） & 没有打断消息：\code{/v1/realtime} 把 \code{response.cancel} 当作不支持（\code{serving\_realtime.py:940--945}） \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{M* 的取消作用在请求这一级，不作用在步这一级。这与 Pi0.5 的断开实验一致：断开后，在途推理仍然算完。}
+\par\memo{来源：external/mstar（2c8ffde8）。Pi0.5 的实测见设计文档 §2.6.4（M* Rust 前端，15 组）。}
+\end{frame}
+
+\begin{frame}[t]{M*：Qwen3-Omni 的图，流式边只在分区之间}
+\vspace{-.1cm}
+\begin{tikzpicture}[x=1cm,y=1cm,
+  p/.style={box=Teal,font=\scriptsize,align=center,minimum width=2.3cm,minimum height=.75cm},
+  ]
+  \node[box=Muted,font=\scriptsize,minimum width=2.3cm,minimum height=.45cm] (cl) at (1.2,0) {客户端（文本、音频、图像）};
+  \node[p] (th) at (1.2,-1.5) {Thinker\\GPU 0--1（TP=2）};
+  \node[p] (tk) at (4.6,-1.5) {Talker\\GPU 2};
+  \node[p] (cw) at (8.0,-1.5) {Code2Wav\\GPU 2};
+  \node[box=Muted,font=\scriptsize,minimum width=2.3cm,minimum height=.45cm] (out) at (8.0,-.0) {音频输出（24 kHz）};
+  \draw[flow,densely dashed,Red] (cl)--(th) node[midway,right,font=\tiny,text=Red] {无输入流边};
+  \draw[strm] (th)--node[above,font=\tiny]{thinker\_states、thinker\_mask}(tk);
+  \draw[strm] (tk)--node[above,font=\tiny]{codec\_tokens}(cw);
+  \draw[flow] (cw)--(out);
+\end{tikzpicture}
+\par\takeaway{M* 的流式在输出侧（分区之间）。输入侧没有流式边。报告 v2 的结论是：一段附件连同它前后的文本是一条 Thinker prefill walk；新附件要开新的 walk，不是并入正在进行的 decode。}
+\par\memo{来源：\code{qwen3\_omni\_model.py:761--807}（分区与拓扑；\code{StreamingGraphEdge} 在 \code{mstar/streaming/topology.py:16} 定义）；基准仓库 report v2 08a 章（附件与 prefill walk 的关系，推断，未在本仓库实测）。}
+\end{frame}

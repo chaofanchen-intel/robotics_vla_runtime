@@ -1,0 +1,38 @@
+% 机器人 VLA 实时运行时：汇报稿（16:9 幻灯片）
+% 对象：Pi0.5 的实时输入与推理、三框架的能力、Level 1 测量、Level 2 调研与待决定事项。
+% 编译：bash build.sh。共用的字体、配色、TikZ 样式与宏在 common.tex，幻灯片版式在 deck.tex。
+% 数字来源：docs/design.md 与 runs/ 下的结果文件；每页的来源在页脚注记中给出。
+\PassOptionsToPackage{table}{xcolor}
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\input{common}
+\input{deck}
+
+\title{机器人 VLA 实时运行时：输入、推理与当前进展}
+\subtitle{框架的异步与流式能力；Pi0.5 与 Qwen3-Omni 两个领域的现状与路线}
+\date{2026-11-23}
+\hypersetup{pdftitle={机器人 VLA 实时运行时：输入、推理与当前进展}}
+
+\begin{document}
+
+\deckcover{实时多模态推理：框架能力与两个领域的路线\\异步输入、流式输出与全双工}%
+  {框架能力 · Pi0.5（机器人 VLA）· Qwen3-Omni（全模态对话）}%
+  {M* · vLLM-Omni · SGLang-Omni 的在线与会话能力 · 多频输入 · 测量结果 · 实验计划}%
+  {汇报稿\quad|\quad robotics\_vla\_runtime\\版本：M* 2c8ffde8 · vLLM-Omni 5917730+overlay · SGLang-Omni e8c635e · SGLang core 0.5.22}
+
+\input{chapters/01_summary}
+\input{chapters/10_fw_criteria}
+\input{chapters/11_fw_mstar}
+\input{chapters/12_fw_vllm}
+\input{chapters/13_fw_sglang}
+\input{chapters/14_fw_matrix}
+\input{chapters/pi05_io}
+\input{chapters/pi05_realtime}
+\input{chapters/pi05_results}
+\input{chapters/pi05_gap}
+\input{chapters/qwen_io}
+\input{chapters/qwen_levels}
+\input{chapters/40_plan}
+\input{chapters/90_appendix}
+
+\end{document}

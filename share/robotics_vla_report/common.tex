@@ -1,0 +1,105 @@
+% 两份文档共用的部分：字体、配色、TikZ 样式、表格与代码块、标签与内容宏。
+% 不含页面版式：幻灯片外观在 deck.tex，两份文档的标题与内容在 main.tex、main_framework.tex。
+% 使用前需要先在调用文件里写 \PassOptionsToPackage{table}{xcolor} 和 \documentclass。
+
+% ---------- 字体：Lato（拉丁）+ Noto Sans CJK SC（中文），等宽用 DejaVu Sans Mono ----------
+\usepackage[UTF8,scheme=plain]{ctex}
+% 注意：fontconfig 会把名称 "Lato" 解析成 Hairline 字重，所以直接按文件加载；缺文件时退回 Noto Sans CJK SC。
+\IfFileExists{/usr/share/fonts/truetype/lato/Lato-Regular.ttf}{%
+  \setmainfont{Lato-Regular.ttf}[Path=/usr/share/fonts/truetype/lato/,BoldFont=Lato-Bold.ttf,ItalicFont=Lato-Italic.ttf,BoldItalicFont=Lato-BoldItalic.ttf]%
+  \setsansfont{Lato-Regular.ttf}[Path=/usr/share/fonts/truetype/lato/,BoldFont=Lato-Bold.ttf,ItalicFont=Lato-Italic.ttf,BoldItalicFont=Lato-BoldItalic.ttf]%
+}{%
+  \setmainfont{Noto Sans CJK SC}\setsansfont{Noto Sans CJK SC}%
+}
+\setmonofont{DejaVu Sans Mono}[Scale=0.84]
+\setCJKmainfont{Noto Sans CJK SC}
+\setCJKsansfont{Noto Sans CJK SC}
+\setCJKmonofont{Noto Sans CJK SC}
+\renewcommand{\familydefault}{\sfdefault}
+
+\usepackage{booktabs,array,tabularx,multirow,graphicx,xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,shapes.geometric,backgrounds,decorations.pathreplacing}
+\usepackage{fancyvrb}
+\usepackage[skins]{tcolorbox}
+\usepackage{hyperref}
+
+% ---------- 配色：取自公司模板（深蓝 001E50、蓝 0054AE / 0046C9 / 00377C、青 00C7FD、紫 6515AD / AF99FF、浅底 F5F8FF）----------
+% 语义：Teal = M*（主蓝）、Orange = vLLM-Omni（紫）、Blue = SGLang-Omni（青）、Gold = 状态 / 交接（深蓝）、Red = 警示。
+% 变量名沿用旧版（Teal / Orange / ...），只改取值，页面内容里的颜色引用不用动。
+\definecolor{Ink}{HTML}{0A1A33}
+\definecolor{Navy}{HTML}{001E50}
+\definecolor{Teal}{HTML}{0054AE}
+\definecolor{Blue}{HTML}{0092C2}
+\definecolor{Orange}{HTML}{6515AD}
+\definecolor{Red}{HTML}{C2334A}
+\definecolor{Gold}{HTML}{00377C}
+\definecolor{Cyan}{HTML}{00C7FD}
+\definecolor{Lav}{HTML}{AF99FF}
+\definecolor{Muted}{HTML}{5B6B82}
+\definecolor{Line}{HTML}{C9D3E3}
+\definecolor{Mist}{HTML}{F5F8FF}
+\definecolor{TealBg}{HTML}{E6EFF9}
+\definecolor{BlueBg}{HTML}{E0F6FD}
+\definecolor{OrangeBg}{HTML}{EFE7F8}
+\definecolor{RedBg}{HTML}{FBE9EC}
+\definecolor{GoldBg}{HTML}{E4EAF4}
+\hypersetup{colorlinks=true,linkcolor=Ink,urlcolor=Blue,citecolor=Blue}
+
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+% Pull top-aligned columns closer to the title rule without changing table-only slides.
+\newcommand{\minipagetop}{\vspace{-.3cm}}
+
+% ---------- 通用宏 ----------
+\newcommand{\memo}[1]{{\color{Muted}\footnotesize #1}}
+\newcommand{\pill}[2]{{\setlength{\fboxsep}{1.6pt}\raisebox{.05ex}{\colorbox{#1}{\textcolor{white}{\fontsize{6.5}{7}\selectfont\bfseries #2}}}}}
+\newcommand{\tagE}{\pill{Teal}{实验}}
+\newcommand{\tagC}{\pill{Blue}{源码}}
+\newcommand{\tagO}{\pill{Gold}{官方}}
+\newcommand{\tagH}{\pill{Orange}{假设}}
+\newcommand{\tagG}{\pill{Red}{未测}}
+\newcommand{\labSame}{\pill{Teal}{方向一致}}
+\newcommand{\labMag}{\pill{Gold}{量级不同}}
+\newcommand{\labBase}{\pill{Orange}{口径不同}}
+\newcommand{\labRev}{\pill{Red}{方向相反}}
+% 伪代码块：Verbatim 中用 \kw{} \cm{} \id{} 着色（花括号需写成 \{ \}）
+\newcommand{\kw}[1]{\textbf{\textcolor{Teal}{#1}}}
+\newcommand{\cm}[1]{\textcolor{Muted}{#1}}
+\newcommand{\id}[1]{\textcolor{Orange}{#1}}
+\newcommand{\hi}[1]{\textbf{\textcolor{Red}{#1}}}
+\newtcolorbox{codebox}[2][]{enhanced,colback=Mist,colframe=Line,boxrule=.4pt,arc=2pt,left=4pt,right=3pt,top=2pt,bottom=2pt,
+  title={#2},coltitle=white,colbacktitle=Teal,fonttitle=\fontsize{6.8}{8}\selectfont\bfseries,boxsep=1pt,toptitle=1.2pt,bottomtitle=1.2pt,lefttitle=4pt,before skip=0pt,#1}
+% 右侧说明框：高度自适应，可连续堆叠
+\newtcolorbox{nbox}[3][]{colback=#2!6,colframe=#2,boxrule=.7pt,arc=2.5pt,left=4pt,right=4pt,top=3pt,bottom=3pt,
+  before upper={\def\codesize{\relax}\noindent\textbf{\textcolor{#2}{#3}}\par\vspace{1pt}},fontupper=\fontsize{7.7}{9.5}\selectfont\raggedright,before skip=0pt,after skip=4pt,#1}
+\newcommand{\hl}[1]{\textbf{\textcolor{Teal}{#1}}}
+\newcommand{\warn}[1]{\textbf{\textcolor{Red}{#1}}}
+\newcommand{\codesize}{\small}
+\newcommand{\code}[1]{\texttt{\codesize #1}}
+\newcommand{\tb}[1]{{\bfseries #1}}
+% Walk 名字：小字号，长名（如 image_gen_guided3）能放进 2.25 cm 的框
+\newcommand{\wname}[1]{{\fontsize{6.6}{8}\selectfont\bfseries #1}}
+
+% 图片来源注记
+\newcommand{\figsource}[1]{{\color{Muted}\fontsize{6.5}{7.8}\selectfont #1}}
+
+% ---------- TikZ 图元样式（固定高度、字号，避免重叠） ----------
+\tikzset{
+  >={Latex[length=1.8mm]},
+  box/.style={draw=#1,fill=#1!8,rounded corners=2.5pt,line width=.8pt,align=center,font=\footnotesize,minimum height=.62cm,inner xsep=4pt,inner ysep=2.5pt},
+  box/.default=Teal,
+  sbox/.style={box=#1,font=\scriptsize,minimum height=.45cm,inner xsep=3pt,inner ysep=1.5pt},
+  sbox/.default=Teal,
+  plain/.style={align=center,font=\footnotesize,inner sep=1pt},
+  tiny/.style={align=center,font=\scriptsize,inner sep=1pt,text=Muted},
+  flow/.style={->,draw=Muted,line width=.9pt},
+  ctrl/.style={->,draw=Blue,line width=.9pt,densely dashed},
+  strm/.style={->,draw=Orange,line width=1.2pt},
+  back/.style={->,draw=Teal,line width=1pt,rounded corners=3pt},
+  wk/.style={box=#1,minimum height=.62cm,font=\scriptsize,inner xsep=3pt},
+  panel/.style={draw=Line,fill=Mist,rounded corners=3pt,line width=.6pt},
+}
+
+% 对数轴上的点与连线（第 18 页）
+\newcommand{\two}[3]{\pgfmathsetmacro{\xa}{ln(#2/0.5)/ln(2)*1.5}\pgfmathsetmacro{\xb}{ln(#3/0.5)/ln(2)*1.5}\draw[Muted!60,line width=.8pt] (\xa,#1)--(\xb,#1);}
+\newcommand{\dotat}[3]{\pgfmathsetmacro{\xx}{ln(#2/0.5)/ln(2)*1.5}\node[#3] at (\xx,#1) {};}

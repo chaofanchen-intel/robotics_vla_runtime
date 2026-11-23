@@ -1,0 +1,94 @@
+\setpart{框架能力 · vLLM-Omni}
+
+\begin{frame}[t]{vLLM-Omni：流式视频会话，查询时才被模型看到}
+\vspace{.12cm}
+\begin{minipage}[t]{5.3cm}\minipagetop
+\tb{WS /v1/video/chat/stream}\\[.05cm]
+\scriptsize
+\begin{tabularx}{\linewidth}{>{\bfseries}p{2.0cm} Y}
+\toprule
+\rowcolor{Mist}
+客户端发送 & 服务端返回 \\
+\midrule
+\code{session.config}（一次） & \code{response.start} \\
+\code{video.frame}（JPEG/PNG，可带 frame\_id） & \code{response.text.delta} \\
+\code{audio.chunk}（PCM16，16 kHz） & \code{response.output\_audio.delta} \\
+\code{video.query}（文本） & \code{response.text.done}、\code{session.done} \\
+\code{video.done}（结束会话） & \code{video.frames.consumed}（帧被用到时） \\
+\bottomrule
+\end{tabularx}
+\end{minipage}\hfill
+\begin{minipage}[t]{5.1cm}\minipagetop
+\begin{nbox}{Orange}{实际行为（依据）}
+\scriptsize
+\begin{itemize}\setlength\itemsep{1pt}\setlength\leftmargin{.8em}
+\item 只支持 Qwen3-Omni（\code{serving\_\allowbreak video\_\allowbreak stream.py:51--55}）。
+\item 服务端缓冲：帧最多 50 个，音频 4 MiB（约 131 秒）。
+\item 查询时取缓冲快照；生成中送入的帧\textbf{不进入正在运行的请求}（\code{:465--478}）。
+\item 每次查询清空音频（\code{:548--550}）；\code{video.done} 不取消当前查询（\code{:781--787}）。
+\end{itemize}
+\end{nbox}
+\end{minipage}
+\par\takeaway{这是窗口式会话：输入持续缓存，理解按查询发生。它不是推理中并入新输入。}
+\par\memo{来源：pinned/vllm-omni；文档漏列 ack、frames.consumed、ping，代码中有。}
+\end{frame}
+
+\begin{frame}[t]{vLLM-Omni：新查询会抢占旧查询；增量 prefill 有三个条件}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3.0cm} Y Y}
+\toprule
+\rowcolor{Mist}
+项目 & 实际行为 & 依据 \\
+\midrule
+查询进行中再发查询 & 不排队、不合并：取消旧查询的任务，旧回答的剩余输出静默丢弃，新查询取当前缓冲快照 & \code{video\_stream\_base.py:437--447, 534--562, 1008--1010} \\
+增量 prefill 的条件 1 & 阶段 0（Thinker）开启前缀缓存；pinned 的 \code{qwen3\_omni\_moe.yaml} 默认关闭（latest 默认开） & \code{:84--92}；pinned \code{yaml:32}，latest \code{yaml:40} \\
+增量 prefill 的条件 2 & 输出只含文本（modalities 不含 audio）；语音输出时退回旧路径 & \code{:296--298} \\
+增量 prefill 的条件 3 & 预热只在没有查询进行时进行；进行中送入的帧，在本次生成结束后才预热 & \code{:465--478} \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{增量 prefill 减少的是查询之间的重复计算，不是生成过程中的输入更新。开启语音输出就失去它。}
+\par\memo{来源：pinned/vllm-omni；latest 与 pinned 的差别仅在默认值（pinned 默认关，latest 默认开，CUDA 上）。文档 \code{video\_stream\_api.md:19--21} 写的是 opt-in，与 pinned 一致。}
+\end{frame}
+
+\begin{frame}[t]{vLLM-Omni：双工端点中，Qwen3-Omni 是轮次模型}
+\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.5cm} Y Y}
+\toprule
+\rowcolor{Mist}
+端点 & 行为 & 依据 \\
+\midrule
+\code{/v1/\allowbreak realtime}（轮次式） & 输入音频在 commit 前一直缓存；commit 生成一次回答；\code{response.cancel} 调用引擎 abort & \code{realtime/connection.py:355--392, 477--507, 1429--1470} \\
+\code{/v1/\allowbreak realtime?\allowbreak duplex=1} & 需要部署配置 \code{session\_mode: duplex}（\code{qwen3\_omni\_duplex.yaml:2--3}）；否则返回错误并以 1008 关闭（文档写的是回退到轮次式，与代码不符） & \code{api\_server.py:\textasciitilde1815--1835}；\code{full\_duplex\_api.md} \\
+Qwen3-Omni 插件 & \code{supports\_barge\_in=True}；每个提交的话语是一个新请求；不宣称原生流式 KV；轮次由引擎的 VAD / commit 决定 & \code{plugin.py:370--395} \\
+打断过程 & 检测到语音 $\to$ 判定 barge-in $\to$ 结束回答，纪元加一，中止当前请求，旧纪元的输出丢弃，发出 \code{audio.cancelled} & \code{runner.py:2064--2155}；\code{engine\_session.py:1903--1911} \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{vLLM-Omni 的"全双工"在会话层：引擎管理轮次和打断，模型仍按话语出请求。Qwen3-Omni 已接入这个端点。}
+\par\memo{来源：pinned/vllm-omni；docs/serving/full\_duplex\_api.md:75--80（支持的模型：MiniCPM-o 4.5、Qwen3-Omni、Nemotron VoiceChat；PersonaPlex 未接入）。}
+\end{frame}
+
+\begin{frame}[t]{vLLM-Omni：阶段间的流水与异步输出，只覆盖输出侧}
+\vspace{-.1cm}
+\begin{tikzpicture}[x=1cm,y=.95cm]
+  \node[box=Orange,font=\scriptsize,minimum width=2.2cm,minimum height=.6cm] (a) at (1.1,0) {Thinker\\每个 decode 步 1 个};
+  \node[box=Orange,font=\scriptsize,minimum width=2.2cm,minimum height=.6cm] (b) at (4.3,0) {Talker\\codec 每 25 帧（首块 4）};
+  \node[box=Orange,font=\scriptsize,minimum width=2.2cm,minimum height=.6cm] (c) at (7.5,0) {Code2Wav\\分块解码};
+  \node[box=Muted,font=\scriptsize,minimum width=2.2cm,minimum height=.6cm] (i) at (1.1,-1.5) {输入：一次性 prefill\\（不流式）};
+  \draw[strm] (a)--node[above,font=\tiny]{hidden states}(b);
+  \draw[strm] (b)--node[above,font=\tiny]{codec}(c);
+  \draw[flow,densely dashed] (i)--(a);
+  \node[box=Gold,font=\scriptsize,minimum width=3.8cm,minimum height=.6cm] (ao) at (7.0,-1.5) {异步输出：D2H 与打包\\移到后台线程（不同模型）};
+\end{tikzpicture}
+\par\scriptsize
+\begin{itemize}\setlength\itemsep{1pt}
+\item \tb{async\_chunk}：阶段间按块交接。文档示例（H800，非本项目测量）：文本生成语音、并发 1 时，首包音频时间从 6.46 秒降到 0.52 秒。
+\item 输入不经过这条流水线：第 0 阶段一次性 prefill 完整提示（\code{async\_chunk.md:101--107}）。
+\item \tb{取消}：取消会一路中止到 vLLM 调度器（\code{async\_omni.py:381--388}；\code{async\_llm.py:779--781}）；GPU 在下一个引擎步停止（推断，未在 GPU 上测）。
+\end{itemize}
+\par\takeaway{async\_chunk 让输出更早开始，但输入仍是一次性进入第 0 阶段。}
+\par\memo{来源：pinned/vllm-omni（\code{deploy/qwen3\_omni\_moe.yaml:15--22}）；H800 数据来自 async\_chunk.md。}
+\end{frame}

@@ -1,0 +1,173 @@
+\setpart{Pi0.5 · 输入与输出}
+
+\begin{frame}[t]{Pi0.5 的输入：我们每次发什么}
+\scriptsize
+\renewcommand{\arraystretch}{1.05}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.6cm} Y p{1.5cm}}
+\toprule
+\rowcolor{Mist}
+输入 & 内容与来源（Level 1 回放） & 频率 \\
+\midrule
+相机 base\_0\_rgb & 外部相机 1，RGB 图，服务端缩放到 224（来自 exterior\_image\_1\_left） & 15 Hz \\
+相机 left\_wrist\_0\_rgb & 腕部相机，RGB 图（来自 wrist\_image\_left，相位错开 22 毫秒） & 15 Hz \\
+相机 right\_wrist\_0\_rgb & 外部相机 2，RGB 图（来自 exterior\_image\_2\_left） & 7.5 Hz \\
+state & 32 维，归一化：DROID 的 7 维位姿加夹爪，补零到 32；由 15 Hz 插值到 100 Hz & 100 Hz \\
+prompt & 语言指令字符串，每个 episode 开始时一次 & 事件 \\
+参数 & 去噪步数 10；随机种子 42 & 每次请求 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{请求内容由框架无关的快照生成，只在最后一步按框架改键名：vLLM-Omni 与 M* 用 \code{observation.images.*}，SGLang core 用 \code{observation.state}。}
+\par\memo{来源：src/runtime/dataset.py:22--24；observation.py（StreamSpec、Schedule.snapshot）；exps/tasks/pi05/transport.py:199--228。模型为 pi05\_droid（动作块 15 步）；检查点不带归一化统计，回放的状态是笛卡尔位姿，而 pi05\_droid 训练用的是关节角，所以动作数值没有语义，本项目只测时间。}
+\end{frame}
+
+\begin{frame}[t]{Pi0.5 的输出：从输入到一块动作}
+\vspace{-.1cm}
+\begin{tikzpicture}[x=1cm,y=1cm,
+  n/.style={box=Teal,font=\scriptsize,minimum height=.8cm},
+  k/.style={box=Orange,font=\scriptsize,minimum height=.8cm},
+  ]
+  \node[n,minimum width=2.3cm] (img) at (1.0,0) {3 张图像\\{\tiny 缩放到 224，每张 256 token}};
+  \node[n,minimum width=2.3cm] (txt) at (1.0,-1.1) {prompt + state\\{\tiny state 离散成 256 个 bin}};
+  \node[k,minimum width=2.6cm] (pre) at (3.9,-.55) {前缀 prefill（约 910 token）\\{\tiny 只算一次，写入 KV 缓存}};
+  \node[k,minimum width=2.6cm,fill=Red!8,draw=Red] (den) at (7.0,-.55) {动作专家：10 步欧拉\\{\tiny $x \leftarrow x + dt\cdot v$，每步读同一份 KV}};
+  \node[n,minimum width=2.0cm,fill=Gold!12,draw=Gold] (out) at (9.9,-.55) {动作块\\{\tiny Level 1：15 $\times$ 32}};
+  \draw[flow] (img) -- (pre); \draw[flow] (txt) -- (pre);
+  \draw[flow] (pre) -- (den);
+  \draw[flow] (den) -- (out);
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-2.2) {起点是形状为（batch, horizon, 32）的高斯噪声，t 从 1.0 走到 0；每个请求都重算前缀，跨请求不复用 KV。};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-2.5) {前缀（图像、prompt、state）一变，整段 KV 失效；一次请求只返回一次，没有流式输出（TTFT、ITL 不适用）。};
+\end{tikzpicture}
+\par\takeaway{一次推理 = 一次前缀计算 + 十次动作专家计算。前缀能否复用，取决于这次请求的图像和 state 是否与上一次相同。}
+\par\memo{来源：openpi src/openpi/models/pi0.py:216--279（sample\_actions，默认 10 步）；tokenizer.py:24--28（state 离散化）；pi0.py:105--137（前缀全部双向）；report v2 09a 章；设计文档 §3.1。}
+\end{frame}
+\begin{frame}[t]{机器人的输入是多频、异步到达的}
+\vspace{-.1cm}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  % 时间轴：0--1.0 秒，8 厘米 = 1 秒
+  \def\X{2.3}
+  \def\S{8.0}
+  % 控制时钟 15 Hz（竖虚线）
+  \foreach \i in {0,...,15}{
+    \draw[Muted!55,densely dashed,line width=.5pt] ({\X+\i*\S/15},0.45) -- ({\X+\i*\S/15},-2.25);
+  }
+  % 状态 100 Hz
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,0.1) {状态 state};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-0.12) {100 Hz（由 15 Hz 插值）};
+  \foreach \i in {0,...,99}{
+    \draw[Teal,line width=.5pt] ({\X+\i*\S/100},0.05) -- ({\X+\i*\S/100},0.22);
+  }
+  % 相机 ext1 15 Hz
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-.5) {外部相机 1};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-.7) {15 Hz，延迟 35 ms};
+  \foreach \i in {0,...,14}{
+    \fill[Orange!70] ({\X+\i*\S/15-.07},-.62) rectangle ({\X+\i*\S/15+.07},-.42);
+  }
+  % 腕部相机 15 Hz，相位错开 22 ms
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-.95) {腕部相机};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-1.15) {15 Hz，相位错开 22 ms};
+  \foreach \i in {0,...,14}{
+    \fill[Orange!70] ({\X+.22+\i*\S/15-.07},-1.07) rectangle ({\X+.22+\i*\S/15+.07},-.87);
+  }
+  % 外部相机 2 7.5 Hz
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-1.4) {外部相机 2};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-1.6) {7.5 Hz，延迟 45 ms};
+  \foreach \i in {0,...,7}{
+    \fill[Red!75] ({\X+.4+\i*\S/7.5-.08},-1.52) rectangle ({\X+.4+\i*\S/7.5+.08},-1.32);
+  }
+  % 指令：事件
+  \node[anchor=west,font=\scriptsize\bfseries,text=Ink] at (0,-1.85) {语言指令};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-2.05) {事件，每个 episode 一次};
+  \fill[Gold] ({\X-.06},-1.97) rectangle ({\X+.06},-1.77);
+  % 时间轴
+  \draw[Muted,->] ({\X},-2.45) -- ({\X+\S+.1},-2.45);
+  \foreach \tm/\lab in {0/0,0.25/0.25,0.5/0.5,0.75/0.75,1.0/1.0}{
+    \draw[Muted] ({\X+\tm*\S},-2.42) -- ({\X+\tm*\S},-2.48);
+    \node[font=\tiny,text=Muted] at ({\X+\tm*\S},-2.66) {\lab\,s};
+  }
+  \node[anchor=west,font=\tiny,text=Muted] at (0,0.62) {灰色虚线：控制时钟，每 66.7 毫秒执行一个动作};
+\end{tikzpicture}\\[-.05cm]
+\begin{tabularx}{\textwidth}{>{\bfseries}p{3.4cm} Y Y}
+\toprule
+输入 & 到达的节奏 & 到达延迟（模拟参数，非实测） \\
+\midrule
+状态（本体感知） & 100 Hz 的高频状态 & 2 毫秒，加 0--1 毫秒抖动 \\
+相机与语言指令 & 相机 15 / 15 / 7.5 Hz；指令一次性事件 & 相机 25--45 毫秒，加抖动 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{各路到达的频率和时刻都不同，而控制器每 66.7 毫秒就要一个动作。所以系统里一定有“最新一条”这种读取方式。}
+\end{frame}
+
+\begin{frame}[t]{每次推理读到的是“每路最新一条”，旧数据有多旧}
+\vspace{-.1cm}
+\begin{minipage}[t]{6.9cm}
+\minipagetop
+\small\tb{快照时每一路输入的年龄（毫秒，M* 行，阈值 0.5 秒触发）}\\[.1cm]
+\begin{tikzpicture}[x=1cm,y=.5cm]
+  \def\k{.02}
+  \foreach \y/\name/\mid/\hi/\colr in {4/状态/7/12/Teal, 3/相机 1/70/100/Orange, 2/腕部相机/56/90/Orange, 1/相机 2（7.5 Hz）/114/174/Red}{
+    \node[anchor=east,font=\scriptsize,inner sep=1pt] at (1.85,\y) {\name};
+    \fill[\colr!55] (1.95,\y-.25) rectangle ({1.95+\mid*\k},\y+.25);
+    \fill[\colr!18] ({1.95+\mid*\k},\y-.25) rectangle ({1.95+\hi*\k},\y+.25);
+    \node[anchor=west,font=\tiny,inner sep=1pt] at ({1.97+\hi*\k},\y) {\mid\ / \hi\ 毫秒};
+  }
+  \draw[Muted,line width=.4pt] (1.95,.4) -- (1.95,4.6);
+\end{tikzpicture}\\[.05cm]
+\scriptsize 标注为 p50 / p95。深色：p50；浅色：p50 到 p95。同一时钟采样的对照（lockstep）：最旧输入 p50 为 34 毫秒，p95 为 63 毫秒。
+\end{minipage}\hfill
+\begin{minipage}[t]{3.4cm}
+\minipagetop
+\begin{nbox}{Teal}{读法}
+\small
+最旧的一路是 7.5 Hz 的相机 2：它的采样间隔最长 133 毫秒，延迟 45 毫秒，两者相加决定了快照的新旧。\\[2pt]
+动作被执行时，最旧输入的陈旧度 p50 是 406 毫秒（M*，见第 6 部分）。
+\end{nbox}
+\end{minipage}
+\par\takeaway{多频输入的新旧程度由最慢的一路决定，与框架无关：三个框架的快照年龄几乎相同。}
+\par\memo{来源：runs/2026-11-20\_\allowbreak{}level1/\allowbreak{}level1\_\allowbreak{}summary.md（快照年龄表，三轮中位数）；设计文档 §2.7 第 4 条。}
+\end{frame}
+
+\begin{frame}[t]{三种读取方式：等齐、每路最新一条、近似时间对齐}
+\renewcommand{\arraystretch}{1.22}
+\scriptsize
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.1cm} Y Y Y}
+\toprule
+\rowcolor{Mist}
+ & 等齐再推理 & 每路最新一条 + 记录年龄 & 近似时间对齐 \\
+\midrule
+何时推理 & 每一路都到了才推 & 控制需要新动作时推 & 一组输入的时间戳落在窗口内时推 \\
+额外等待 & 每次要等最慢一路：7.5 Hz 相机最长 133 毫秒采样间隔，加 45 毫秒延迟 & 无 & 取决于窗口大小 \\
+各路时刻 & 基本相同（同一时钟采样，即 lockstep） & 不同，每路记录自己的年龄 & 在时间窗口内 \\
+输出频率 & 由最慢的一路决定 & 由控制需要决定 & 不超过最慢的一路（源码推断） \\
+主流用在哪 & 数据集的一行记录；离线评测 & LeRobot 的观测槽；本项目的 Level 1 & ROS 2 \code{message\_filters} 的 ApproximateTime，多传感器融合 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{对实时控制，“每路最新一条 + 年龄”更合适：它不增加等待，年龄可测，超龄的输入可以在运行时拒绝。}
+\par\memo{来源：设计文档 §3.3（message\_\allowbreak{}filters 8.0.5，approximate\_\allowbreak{}time.hpp:543–544，无周期触发，无快照）；§4.1 的 Level 1 定义；LeRobot 观测槽 remote\_\allowbreak{}inference/\allowbreak{}engine.py:521–528。}
+\end{frame}
+\begin{frame}[t]{我们搭的 Runtime：从回放的传感器到机器人}
+\vspace{-.15cm}
+\begin{tikzpicture}[x=1cm,y=1cm,
+  r/.style={box=Gold,font=\scriptsize,minimum width=2.25cm,minimum height=.62cm},
+  q/.style={box=Teal,font=\scriptsize,minimum width=2.25cm,minimum height=.62cm},
+  ]
+  \node[r] (a) at (1.15,0) {多频回放\\{\tiny droid\_100 + 时间表}};
+  \node[q] (b) at (3.85,0) {观测快照\\{\tiny 每路 $\le t$ 最新一条}};
+  \node[q] (c) at (6.55,0) {触发器\\{\tiny 计数 / 阈值 / 周期}};
+  \node[q] (d) at (9.25,0) {后端适配器\\{\tiny 打包 msgpack，WebSocket}};
+  \draw[flow] (a) -- (b); \draw[flow] (b) -- (c); \draw[flow] (c) -- (d);
+  \node[q,fill=Orange!12,draw=Orange,minimum width=2.25cm] (e) at (9.25,-1.25) {框架（OpenPI 协议）\\{\tiny M* · vLLM-Omni · SGLang core}};
+  \node[q] (f) at (6.55,-1.25) {回复解析\\{\tiny 检查 horizon $\times$ 32}};
+  \node[q] (g) at (3.85,-1.25) {动作管理\\{\tiny 代数号、对齐、欠载}};
+  \node[r] (h) at (1.15,-1.25) {控制时钟 15 Hz\\{\tiny 每 tick 执行一个动作}};
+  \draw[flow] (d) -- (e);
+  \draw[flow] (e.west) -- (f.east);
+  \draw[flow] (f) -- (g);
+  \draw[flow] (g) -- (h);
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-2.2) {代码：src/runtime/（observation、scheduler、action\_manager、controller），src/backends/（三个适配器），src/metrics/level1.py};
+  \node[anchor=west,font=\tiny,text=Muted] at (0,-2.5) {指标：端到端延迟、输入年龄、动作年龄、预定时刻滞后、欠载；单元测试 13 项通过（2026-11-23）};
+\end{tikzpicture}
+\par\takeaway{Runtime 在框架外面做调度、快照、队列和年龄检查。框架只看到完整的请求，因此可以同样用于三个框架。}
+\par\memo{来源：docs/\allowbreak{}design.md §2.7、§4.1；单元测试 tests/\allowbreak{}（假服务器，手算预期，CPU）。}
+\end{frame}
+

@@ -1,0 +1,42 @@
+\setpart{计划与待确定事项}
+
+\begin{frame}[t]{实验计划：每个阶段是否改框架，以及当前状态}
+\scriptsize
+\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{1.2cm} Y p{1.1cm} p{2.5cm}}
+\toprule
+\rowcolor{Mist}
+阶段 & 内容 & 改框架 & 状态 \\
+\midrule
+P0 & Pi0.5 基线与协议探测：三框架同协议的端到端、周期、排队、断开、多连接 & 否 & 完成（11-20） \\
+P1 & Pi0.5 Level 1：多频回放、七种触发策略、欠载与动作年龄 & 否 & 完成（11-21） \\
+P2 & Pi0.5 Level 2 的双连接探测（排队与断开） & 否 & 完成；E1、E2 有证据 \\
+P3 & Qwen3-Omni 路线 A：窗口式 Level 1，三个框架（M* 经 \code{/generate}） & 否 & 计划 \\
+P4 & Qwen3-Omni 路线 B：会话式 Level 1（vLLM-Omni 视频会话、SGLang-Omni 会话） & 否 & 计划 \\
+P5 & 推理中输入的测量：会话中途追加输入，记录是否影响当前输出、抢占与打断延迟 & 否 & 计划 \\
+P6 & 引擎改动，依据 P3–P5 的结论选择：M* 的 Qwen3 输入流；vLLM-Omni 的音频增量 prefill；Pi0.5 的 E1、E2 & 是 & 依赖 P3–P5 \\
+P7 & 端到端全双工评测：输入与输出并发，打断延迟，实时因子 & 视情况 & 计划 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{Pi0.5 已完成 Level 1；Qwen3-Omni 从 P3 开始。P6 的引擎改动以 P3–P5 的测量为依据。}
+\end{frame}
+
+\begin{frame}[t]{待确定的范围与参数}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.6cm} Y}
+\toprule
+\rowcolor{Mist}
+问题 & 影响 \\
+\midrule
+Qwen3-Omni 的目标输入：30 帧/秒、20 毫秒音频块、每秒一个窗口是否就是目标场景 & 决定 P3--P5 的负载；不同的帧率与块大小结论不同 \\
+是否把 SGLang-Omni 纳入正式对比（它有 Qwen3-Omni 会话入口，latest 只抽查过） & 决定 P4 的对照范围 \\
+M* 的 Qwen3-Omni 输入流是否在范围内（需要模型侧改动） & 决定 M* 能否进入路线 B \\
+数据来源：回放录制，还是真实的音视频采集 & 决定时间戳与抖动是否是测量值 \\
+Pi0.5 的 Level 2 优先级：E1（服务层）还是 E2（引擎）先做 & 决定 P6 中 Pi0.5 的第一项 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{这些问题不阻塞 P3，可以在 P3 的测量中逐步确定。}
+\end{frame}

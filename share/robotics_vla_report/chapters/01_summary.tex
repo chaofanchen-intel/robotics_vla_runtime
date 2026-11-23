@@ -1,0 +1,34 @@
+\setpart{结论}
+
+\begin{frame}[t]{主要结论}
+\footnotesize
+\renewcommand{\arraystretch}{1.05}
+\begin{enumerate}\setlength\itemsep{2.5pt}
+\item \tb{输出流式三个框架都有。} M* 的 NDJSON 与分区流式边、vLLM-Omni 的增量事件、SGLang-Omni 的 SSE，都能在请求进行中逐步返回。
+\item \tb{输入流式只有会话式入口。} M* 对 Qwen3-Omni 没有输入流（模型未声明，追加被拒绝）。vLLM-Omni 的视频会话与 SGLang-Omni 的会话入口可以持续接收音频和帧，但只在查询或轮次边界时被模型看到。
+\item \tb{三个框架都不能把运行中到达的输入并入正在进行的生成。} vLLM-Omni 的新查询抢占旧查询；SGLang-Omni 的打断后重问或截断；M* 没有打断。这是两个领域共同的缺口。
+\item \tb{取消与打断各不相同。} vLLM-Omni 的取消会到达引擎的 abort；M* 只丢弃排队中的请求，已启动的一步跑完；SGLang-Omni 的取消未核对。vLLM-Omni 与 SGLang-Omni 有打断，M* 没有。
+\item \tb{Pi0.5（机器人）：Level 1 已完成。} 外部运行时在三个框架上测完了多频输入、触发与欠载。要达到目标还需要引擎级改动：同连接接收、中止在途推理、RTC。
+\item \tb{Qwen3-Omni：目前只有基准仓库的单请求数据。} 下一步是两条 Level 1 路线（窗口式与会话式），都不改框架；推理中并入新输入属于 Level 2。
+\end{enumerate}
+\par\takeaway{框架的能力差异在两件事上：输入能否在运行中进入（M* 依赖模型声明，vLLM-Omni 与 SGLang-Omni 依赖会话入口），以及取消能否到达 GPU。}
+\end{frame}
+
+\begin{frame}[t]{本汇报的结构}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{1.3cm} >{\bfseries}p{3.4cm} Y}
+\toprule
+\rowcolor{Mist}
+部分 & 主题 & 回答什么 \\
+\midrule
+一 & 框架能力 & 六项能力的判据；M*、vLLM-Omni、SGLang-Omni 各能做什么、不能做什么；对照；要达到目标各层要改什么 \\
+二 & Pi0.5（机器人 VLA） & 输入与输出；多频输入与快照；实时方案（控制与推理解耦、动作块衔接、RTC）；测量；Level 2 的缺口 \\
+三 & Qwen3-Omni（全模态对话） & 两种流式；三类输入的时间语义；现有的单请求数据；三层路线与评价指标 \\
+四 & 计划与待确定事项 & 实验阶段与状态；需要确定的范围与参数 \\
+附 & 版本、来源与局限 & 版本与来源；局限与未验证项 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{先看一的六项能力，二和三是两个领域的具体问题，四是接下来要做的实验。}
+\end{frame}
