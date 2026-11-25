@@ -9,7 +9,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `main.tex` → `main.pdf` | 汇报稿（16:9 幻灯片，共 43 页） |
+| `main.tex` → `main.pdf` | 汇报稿（16:9 幻灯片，共 44 页） |
 | `chapters/01_summary.tex` | 主要结论、汇报结构 |
 | `chapters/10_fw_criteria.tex` | 六项能力的定义与判据；两个领域分别需要什么 |
 | `chapters/11_fw_mstar.tex` | M\*：输入路径、输出与取消、Qwen3-Omni 的图 |

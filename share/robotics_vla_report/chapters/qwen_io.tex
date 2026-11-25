@@ -2,20 +2,20 @@
 
 \begin{frame}[t]{Qwen3-Omni 有两种流式，要分开看}
 \vspace{-.1cm}
-\begin{minipage}[t]{5.2cm}\minipagetop
+\begin{minipage}[t]{5.0cm}\minipagetop
 \tb{A. 模型内部的输出流（已有）}\\[.05cm]
-\begin{tikzpicture}[x=1cm,y=1cm]
+\scalebox{.95}{\begin{tikzpicture}[x=1cm,y=1cm]
   \node[box=Teal,font=\scriptsize,minimum width=1.45cm,minimum height=.5cm] (t) at (.75,0) {Thinker};
   \node[box=Teal,font=\scriptsize,minimum width=1.45cm,minimum height=.5cm] (k) at (2.6,0) {Talker};
   \node[box=Teal,font=\scriptsize,minimum width=1.45cm,minimum height=.5cm] (c) at (4.45,0) {Code2Wav};
   \draw[strm] (t)--node[above,tiny]{token}(k);
   \draw[strm] (k)--node[above,tiny]{codec 块}(c);
-\end{tikzpicture}\\[.05cm]
+\end{tikzpicture}}\\[.05cm]
 \scriptsize 三个分区之间边生产边交接，输出音频分块返回。这是流水线，不是输入的更新。
 \end{minipage}\hfill
-\begin{minipage}[t]{5.2cm}\minipagetop
+\begin{minipage}[t]{5.0cm}\minipagetop
 \tb{B. 模型外部的输入流（待研究）}\\[.05cm]
-\begin{tikzpicture}[x=1cm,y=1cm]
+\scalebox{.95}{\begin{tikzpicture}[x=1cm,y=1cm]
   \node[box=Muted,font=\scriptsize,minimum width=1.2cm,minimum height=.42cm] (v) at (.6,.3) {视频帧};
   \node[box=Muted,font=\scriptsize,minimum width=1.2cm,minimum height=.42cm] (a) at (.6,-.25) {音频块};
   \node[box=Muted,font=\scriptsize,minimum width=1.2cm,minimum height=.42cm] (x) at (.6,-.8) {文本事件};
@@ -23,10 +23,10 @@
   \node[box=Teal,font=\scriptsize,minimum width=1.4cm,minimum height=.5cm] (th) at (4.55,-.25) {Thinker};
   \draw[flow] (v)--(b); \draw[flow] (a)--(b); \draw[flow] (x)--(b);
   \draw[flow] (b)--(th);
-\end{tikzpicture}\\[.05cm]
+\end{tikzpicture}}\\[.05cm]
 \scriptsize 持续到达的多模态输入，在推理期间如何进入同一次计算，是本汇报要回答的问题。
 \end{minipage}
-\par\takeaway{M* 的 StreamingGraphEdge 与 vLLM-Omni 的 async\_chunk 解决的是 A。B 是另一个问题：输入要进入一次正在进行的理解。}
+\par\takeaway{M* 的 Streaming\allowbreak{}GraphEdge 与 vLLM-Omni 的 async\_chunk 解决的是 A。B 是另一个问题：输入要进入一次正在进行的理解。}
 \par\memo{来源：report v2 08a 章（三个分区与边的类型）；设计文档 §2.4（M* 的 StreamingGraphEdge 是分区之间的边）。B 的能力在三个框架中的状态见框架部分。}
 \end{frame}
 

@@ -10,11 +10,11 @@
 \rowcolor{Mist}
 客户端发送 & 服务端返回 \\
 \midrule
-\code{session.config}（一次） & \code{response.start} \\
-\code{video.frame}（JPEG/PNG，可带 frame\_id） & \code{response.text.delta} \\
-\code{audio.chunk}（PCM16，16 kHz） & \code{response.output\_audio.delta} \\
-\code{video.query}（文本） & \code{response.text.done}、\code{session.done} \\
-\code{video.done}（结束会话） & \code{video.frames.consumed}（帧被用到时） \\
+\code{session.\allowbreak{}config}（一次） & \code{response.start} \\
+\code{video.frame}（JPEG/PNG，可带 frame\_id） & \code{response.\allowbreak{}text.delta} \\
+\code{audio.chunk}（PCM16，16 kHz） & \code{response.\allowbreak{}output\_audio.\allowbreak{}delta} \\
+\code{video.query}（文本） & \code{response.\allowbreak{}text.done}、\code{session.done} \\
+\code{video.done}（结束会话） & \code{video.frames.\allowbreak{}consumed}（帧被用到时） \\
 \bottomrule
 \end{tabularx}
 \end{minipage}\hfill

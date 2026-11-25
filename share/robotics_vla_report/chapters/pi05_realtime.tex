@@ -76,35 +76,53 @@
 \par\memo{来源：设计文档 §2.7（朴素与对齐执行的预定时刻滞后：M* +68 毫秒，SGLang 分桶 +135 毫秒，vLLM-Omni +337 毫秒，对齐下约 0）；action\_\allowbreak{}manager.py 的 locate() 与 execute()。}
 \end{frame}
 
-\begin{frame}[t]{主流的几种做法：各在哪个开源项目里}
+\begin{frame}[t]{主流的几种做法（一）：何时发起推理}
 \scriptsize
 \renewcommand{\arraystretch}{1.12}
 \setlength{\tabcolsep}{3pt}
-\begin{tabularx}{\textwidth}{>{\bfseries}p{2.25cm} p{2.25cm} Y Y Y}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.3cm} p{3.3cm} Y}
 \toprule
 \rowcolor{Mist}
-做法 & 项目（版本） & 何时推理 & 动作怎么衔接 & 中止与 RTC \\
+做法 & 项目（版本） & 何时发起推理 \\
 \midrule
-计数触发 & OpenPI 参考客户端（215abfb） & DROID 执行满 8 步才请求；LIBERO 每 5 步请求；块用完也请求 & 从动作 0 开始，先进先出；无时间戳，无年龄检查 & 无中止；无 RTC \\
-回放阈值 + 动作队列 & LeRobot v0.7.0（410c095） & 剩余动作覆盖的时间 $\le$ 0.5 秒（或往返时间加一步） & 观测槽只留最新一条；带代数号的队列，对齐合并 & 只在客户端丢弃；pi05 默认开启 guided RTC \\
-异步客户端 + RTC & openpi05-bsp（dfb7444）；rtc-pi05（HF，MIT） & 异步调度；RTC 状态机与延迟缓冲 & 客户端保存已发出的动作作为前缀 & 服务端仍串行，无取消；openpi05-bsp 的 README 尚无数字 \\
-训练期 RTC & Kinetix（9296f31，MIT）；openpi\_rlt；EagleVLA（论文） & 模型层面的做法，与触发方式无关 & 训练时采样延迟，推理时硬替换前缀 & 需要重新训练；EagleVLA 的数字为自报 \\
-多传感器对齐 & ROS 2 message\_filters（8.0.5） & 没有周期触发，也没有快照 & 近似或精确时间匹配 & 不涉及推理 \\
+计数触发 & OpenPI 参考客户端（215abfb） & 每执行固定步数就请求：DROID 满 8 步，LIBERO 每 5 步；与时间和剩余动作无关 \\
+回放阈值 & LeRobot v0.7.0（410c095） & 队列剩余的播放时间 $\le$ 取 0.5 秒与（往返时间 + 一个周期）中较大者；pi05 块 50 步，30 fps 时剩 15 步请求 \\
+异步 + RTC & openpi05-bsp（dfb7444）；rtc-pi05（HF，MIT） & 按时间：执行到 $t \ge \max(s_{\min}, d)$ 才发起，$d$ 取最近 10 次延迟的最大值；推理在后台线程进行 \\
+多传感器对齐 & ROS 2 message\_filters（8.0.5） & 不触发推理；只把传感器消息按时间戳配成一组 \\
 \bottomrule
 \end{tabularx}
-\par\takeaway{没有一个开源项目同时具备：每路各自的时间戳、服务端在推理中接收新观测、真正中止 GPU 推理，并带 RTC。RTC 都在客户端或模型里实现。}
-\par\memo{来源：agents\_\allowbreak{}results/2026-11-20\_\allowbreak{}openpi-remote-pi05.md；2026-11-20\_\allowbreak{}lerobot-async-rtc.md；2026-11-21\_\allowbreak{}level2-research-deep.md（A--D 节）。论文数字为作者自报，未复现。}
+\par\takeaway{计数触发的参考客户端在推理期间阻塞控制循环；回放阈值与异步做法让推理在后台进行，控制循环不等推理。}
+\par\memo{来源：agents\_\allowbreak{}results/2026-11-20\_\allowbreak{}openpi-remote-pi05.md 第 2 节；2026-11-20\_\allowbreak{}lerobot-async-rtc.md Q1（execution.py:228--230；factory.py:118）；2026-11-21\_\allowbreak{}level2-research-deep.md A、C 节。}
+\end{frame}
+
+\begin{frame}[t]{主流的几种做法（二）：新动作怎么接，能否中止}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{2.3cm} Y Y p{3.0cm}}
+\toprule
+\rowcolor{Mist}
+做法 & 新块怎么接 & 能否中止或修正 & 代价 \\
+\midrule
+计数触发 & 从动作 0 开始，先进先出；无时间戳，无年龄检查 & 无中止，无 RTC & 每个动作晚一个推理延迟 \\
+回放阈值 + 动作队列 & 观测槽只留最新一条；带代数号与游标的队列，对齐替换未执行部分 & 只在客户端丢弃；pi05 默认不开 RTC（需非 chunk 模式） & 回复慢时缓冲不够，动作断档 \\
+异步 + RTC & 丢掉已执行的 $d$ 步，新块前缀按已发出的动作做推理期引导 & 服务端仍串行，无取消；openpi05-bsp 的 README 尚无数字 & 去噪每步求导，推理变慢 \\
+训练期 RTC & 训练时采样延迟、前缀标为干净；推理时硬替换前缀 & 需要重新训练；EagleVLA 为未来修正模块，机制不同 & 推理开销低，但要训练好的检查点 \\
+\bottomrule
+\end{tabularx}
+\par\takeaway{没有一个开源项目同时具备：服务端在推理中接收新观测、真正中止 GPU 推理，并带 RTC。RTC 都在客户端或模型里实现。}
+\par\memo{来源：openpi 的 examples/droid、action\_\allowbreak{}chunk\_\allowbreak{}broker；LeRobot execution.py:204、539--582，configuration\_\allowbreak{}rtc.py:70；rtc-pi05 rtc/\allowbreak{}controller.py:146--183；Kinetix src/\allowbreak{}model.py:267--288。论文数字为作者自报，未复现。}
 \end{frame}
 
 \begin{frame}[t]{RTC：让新动作接上已经执行的动作}
 \vspace{-.1cm}
 \begin{minipage}[t]{5.6cm}
 \minipagetop
-\begin{tikzpicture}[x=1cm,y=.55cm]
+\scalebox{.92}{\begin{tikzpicture}[x=1cm,y=.55cm]
   \def\X{0.2}
   \def\dd{.7}
   \draw[Line,line width=.4pt] (\X,-3.4) -- (\X+5.1,-3.4);
-  \node[font=\tiny,text=Muted] at (\X+5.1,-3.7) {动作序号};
+  \node[font=\tiny,text=Muted,anchor=north east] at (\X+5.1,-3.5) {动作序号};
   % 旧块：已执行（前 d 步）与未执行
   \foreach \i in {0,...,5}{\fill[Muted!45] ({\X+\i*.45},0) rectangle ({\X+\i*.45+.36},.5);}
   \node[font=\tiny,text=Muted,anchor=south] at ({\X+1.1},.55) {旧块已执行的部分};
@@ -116,9 +134,9 @@
   \node[font=\tiny,text=Red,anchor=west] at ({\X+2.32},-.1) {无 RTC：边界跳变};
   % 冻结的前缀（RTC）
   \fill[Teal!25] ({\X+1.5},-2.0) rectangle ({\X+2.7},-2.5);
-  \node[font=\tiny,text=Teal,anchor=west] at ({\X+2.75},-2.25) {前缀 d 步：训练期冻结，或推理期引导};
-  \node[font=\tiny,text=Muted,anchor=west] at (\X,-2.85) {d = 推理耗时 ÷ 控制周期，向上取整（LeRobot 按实测往返时间计算）};
-\end{tikzpicture}
+  \node[font=\tiny,text=Teal,anchor=west] at ({\X+2.75},-2.25) {前缀 d 步：冻结或引导};
+  \node[font=\tiny,text=Muted,anchor=west] at (\X,-2.85) {d = 推理耗时 ÷ 控制周期，向上取整};
+\end{tikzpicture}}
 \end{minipage}\hfill
 \begin{minipage}[t]{5.0cm}
 \minipagetop
@@ -130,11 +148,12 @@
 方式 & 做法与代价 \\
 \midrule
 无 RTC & 新块直接替换旧块；边界可能跳变 \\
-推理期 guided & 前缀误差通过去噪步的 VJP 修正速度场，权重 $\min\!\big(\tfrac{1-t}{t}\cdot\tfrac{t^2+(1-t)^2}{(1-t)^2},\beta\big)$；不需要重训，但去噪步必须可求导 \\
+推理期 guided & 前缀误差通过去噪步的 VJP 修正速度场，权重以 $\beta$ 截断（公式见下方）；不需要重训，但去噪步必须可求导 \\
 训练期 trained & 训练时随机采样延迟，前缀标为干净动作；推理时硬替换；需要重训 \\
 \bottomrule
 \end{tabularx}
 \end{minipage}
+\par\begin{center}\scriptsize 权重 $w_t=\min\big(\frac{t^2+(1-t)^2}{t(1-t)},\,\beta\big)$\end{center}
 \par\takeaway{guided 不需要重训，但我们的 M* 与 SGLang core 去噪步都在 CUDA 图里，求导需要重新捕获图；这是引擎级改动。}
-\par\memo{来源：Kinetix src/\allowbreak{}model.py:236--258；rtc-pi05 rtc/\allowbreak{}masking.py:122--139；LeRobot configuration\_\allowbreak{}rtc.py:41--52，modeling\_\allowbreak{}rtc.py:46--48；设计文档 §0 第 7 条。}
+\par\memo{来源：Kinetix src/\allowbreak{}model.py:236--258；rtc-pi05 rtc/\allowbreak{}masking.py:122--139；LeRobot configuration\_\allowbreak{}rtc.py:\allowbreak{}41--52，\allowbreak{}modeling\_\allowbreak{}rtc.py:\allowbreak{}46--48；\allowbreak{}设计文档 §0 第 7 条。}
 \end{frame}

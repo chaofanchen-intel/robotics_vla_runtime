@@ -11,7 +11,7 @@
 \midrule
 输出流式（中间结果返回） & 有：NDJSON，每个 token 与音频块一条 & 有：文本与音频增量事件 & 有：SSE，音频 PCM\_F32 \\
 运行中的外部输入（追加） & \textcolor{Red}{无}：Qwen3-Omni 未声明输入流，追加被拒 & 部分：帧与音频缓存，查询时使用 & 部分：会话输入，按轮次切分 \\
-输入形式 & 对 Qwen3-Omni 不适用 & 音频 PCM16 16 kHz；JPEG/PNG 帧；文本 & 音频 PCM16；摄像头帧；文本 \\
+输入形式 & 文本；图像（PNG/JPEG/WebP/GIF）；音频与视频（随整段请求提交，采样率未核对） & 音频 PCM16 16 kHz；JPEG/PNG 帧；文本 & 音频 PCM16；摄像头帧；文本 \\
 多模态时间语义 & 无 & 部分：帧带 frame\_id，返回 latest\_pts\_ms & 未核对 \\
 阶段间流式（输出侧） & 有：\code{StreamingGraphEdge} & 有：async\_chunk & 有（阶段运行时，未逐项核对） \\
 \bottomrule
@@ -54,7 +54,7 @@ Qwen3-Omni 可用的入口 & \code{/generate}（窗口式，本仓库未测） &
 会话式输入与查询 & 需要模型层改动：声明输入流，实现 \code{process\_stream\_chunk} & 现成（视频会话 API），需要的是音频输出时的增量 prefill & 现成（会话入口），需要验证其 GPU 层面的行为 \\
 推理中并入新输入（核心缺口） & 调度与引擎层：把新帧、音频接入正在进行的序列，并处理位置与 KV & 同左，并加上增量编码（音频、视频帧） & 同左 \\
 打断到 GPU 停止 & 取消路径要进入 worker 的步级检查 & 已有取消到引擎 abort，需验证打断延迟 & 需验证 abort 是否立即停止批次 \\
-Pi0.5：同连接接收新观测（E1） & OpenPI 端点的接收与推理解耦（\code{openpi.py:285}；\code{openpi.rs:566}） & 服务层（\code{connection.py:228--278}） & 服务层（\code{ws\_utils.py}） \\
+Pi0.5：同连接接收新观测（E1） & OpenPI 端点的接收与推理解耦（\code{openpi.py:285}；\code{openpi.rs:566}） & 服务层（\code{connection.\allowbreak{}py:228--278}） & 服务层（\code{ws\_utils.py}） \\
 Pi0.5：推理中止（E2） & 去噪步之间加取消点 & 同左（框架内的去噪循环不经过取消路径） & 同左 \\
 \bottomrule
 \end{tabularx}
